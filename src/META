@@ -1,0 +1,19 @@
+version = "113.09.00"
+description = "Generation of comparison functions from types"
+requires = "compiler-libs ppx_core ppx_driver ppx_compare.expander ppx_type_conv ppx_deriving"
+archive(ppx_driver, byte          ) = "ppx_compare.cma"
+archive(ppx_driver, native        ) = "ppx_compare.cmxa"
+archive(ppx_driver, native, plugin) = "ppx_compare.cmxs"
+exists_if = "ppx_compare.cma"
+ppxopt(-ppx_driver) = "ppx_deriving,./ppx_compare.cma"
+
+package "expander" (
+ version = "113.09.00"
+ description = "Expander for ppx_compare"
+ requires = "compiler-libs ppx_core ppx_driver"
+ archive(ppx_driver, byte          ) = "ppx_compare_expander.cma"
+ archive(ppx_driver, native        ) = "ppx_compare_expander.cmxa"
+ archive(ppx_driver, native, plugin) = "ppx_compare_expander.cmxs"
+ exists_if = "ppx_compare_expander.cma"
+ ppxopt(-ppx_driver) = "ppx_deriving,./ppx_compare_expander.cma"
+)
