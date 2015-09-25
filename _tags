@@ -1,4 +1,33 @@
     <**/*.ml{,i}>: warn(-40)
 # OASIS_START
+# DO NOT EDIT (digest: 65a497c945176d3b5f739c619d3c051c)
+# Ignore VCS directories, you can use the same kind of rule outside
+# OASIS_START/STOP if you want to exclude directories that contains
+# useless stuff for the build process
+true: annot, bin_annot
+<**/.svn>: -traverse
+<**/.svn>: not_hygienic
+".bzr": -traverse
+".bzr": not_hygienic
+".hg": -traverse
+".hg": not_hygienic
+".git": -traverse
+".git": not_hygienic
+"_darcs": -traverse
+"_darcs": not_hygienic
+# Library ppx_compare_expander
+"expander/ppx_compare_expander.cmxs": use_ppx_compare_expander
+<expander/*.ml{,i,y}>: package(compiler-libs)
+<expander/*.ml{,i,y}>: package(ppx_core)
+<expander/*.ml{,i,y}>: package(ppx_driver)
+<expander/*.ml{,i,y}>: package(ppx_tools.metaquot)
+# Library ppx_compare
+"src/ppx_compare.cmxs": use_ppx_compare
+<src/*.ml{,i,y}>: package(compiler-libs)
+<src/*.ml{,i,y}>: package(ppx_core)
+<src/*.ml{,i,y}>: package(ppx_driver)
+<src/*.ml{,i,y}>: package(ppx_tools.metaquot)
+<src/*.ml{,i,y}>: package(ppx_type_conv)
+<src/*.ml{,i,y}>: use_ppx_compare_expander
 # OASIS_STOP
     <src/*>: linkall
