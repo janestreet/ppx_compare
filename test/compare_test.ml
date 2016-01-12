@@ -125,3 +125,14 @@ module Variant_inclusion = struct
   type 'a type3 = [ `T3 | 'a type1 ] [@@deriving compare]
   type 'a type4 = [ 'a type2 | `T4 | 'a type3 ] [@@deriving compare]
 end
+
+module Equal = struct
+  let%test _ = [%compare.equal: int list] [7; 8; 9] [7; 8; 9]
+  let%test _ = not ([%compare.equal: int list] [7; 8] [7; 8; 9])
+
+  let%test _ = [%compare.equal: string option] None None
+  let%test _ = not ([%compare.equal: string option] (Some "foo") None)
+
+  let%test _ = [%compare.equal: string] "hello" "hello"
+  let%test _ = not ([%compare.equal: string] "hello" "goodbye")
+end

@@ -1,0 +1,27 @@
+version = "$(pkg_version)"
+description = "Generation of comparison functions from types"
+requires(-ppx_driver) = "ppx_compare.expander.for_ppx_deriving ppx_core.for_ppx_deriving ppx_driver.for_ppx_deriving ppx_type_conv.for_ppx_deriving"
+requires(ppx_driver) = "ppx_compare.expander ppx_core ppx_driver ppx_type_conv"
+archive(ppx_driver, byte          ) = "ppx_compare.cma"
+archive(ppx_driver, native        ) = "ppx_compare.cmxa"
+archive(ppx_driver, native, plugin) = "ppx_compare.cmxs"
+exists_if = "ppx_compare.cma"
+ppxopt(-ppx_driver) = "ppx_deriving,./ppx_compare.cma"
+
+package "expander" (
+  version = "$(pkg_version)"
+  description = "Expander for ppx_compare"
+  requires = "ppx_core"
+  archive(byte          ) = "ppx_compare_expander.cma"
+  archive(native        ) = "ppx_compare_expander.cmxa"
+  archive(native, plugin) = "ppx_compare_expander.cmxs"
+  exists_if = "ppx_compare_expander.cma"
+
+  package "for_ppx_deriving" (
+    description = "Don't use this directly"
+    error(ppx_driver) = "Cannot use ppx_compare.expander.for_ppx_deriving when ppx_driver is set"
+    requires = "ppx_core.for_ppx_deriving ppx_deriving"
+    exists_if = "ppx_compare_expander.cma"
+    ppxopt = "ppx_deriving,./ppx_compare_expander.cma"
+  )
+)
