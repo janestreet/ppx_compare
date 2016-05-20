@@ -13,7 +13,7 @@ ppxopt(-ppx_driver,-custom_ppx) = "ppx_deriving,./ppx_compare.cma"
 package "expander" (
   version = "$(pkg_version)"
   description = "Expander for ppx_compare"
-  requires = "ppx_core"
+  requires = "compiler-libs.common ppx_core"
   archive(byte  ) = "ppx_compare_expander.cma"
   archive(native) = "ppx_compare_expander.cmxa"
   plugin(byte  ) = "ppx_compare_expander.cma"
@@ -24,7 +24,7 @@ package "expander" (
   package "for_ppx_deriving" (
     description = "Don't use this directly"
     error(ppx_driver) = "Cannot use ppx_compare.expander.for_ppx_deriving when ppx_driver is set"
-    requires = "ppx_core.for_ppx_deriving ppx_deriving"
+    requires = "compiler-libs.common ppx_core.for_ppx_deriving ppx_deriving"
     exists_if = "ppx_compare_expander.cma"
     ppxopt(-custom_ppx) = "ppx_deriving,./ppx_compare_expander.cma"
   )
