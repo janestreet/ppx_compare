@@ -219,53 +219,57 @@ and branches_of_sum cds =
     if cd.pcd_res <> None then
       Location.raise_errorf ~loc "GADTs are not supported by comparelib";
     match cd.pcd_args with
-    | [] ->
-      let pcnstr = pconstruct cd None in
-      let pany = ppat_any ~loc in
-      let case l r n =
-        case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
-      in
-      if rightmost then
-        [ case pcnstr pcnstr 0 ]
-      else
-        [ case pcnstr pcnstr 0
-        ; case pcnstr pany   (-1)
-        ; case pany pcnstr   1
-        ]
-    | tps ->
-      let ids_ty =
-        List.map tps
-          ~f:(fun ty ->
-            (gen_symbol ~prefix:"_a" (),
-             gen_symbol ~prefix:"_b" (),
-             ty))
-      in
-      let lpatt = List.map ids_ty ~f:(fun (l,_r,_ty) -> pvar ~loc l) |> ppat_tuple ~loc
-      and rpatt = List.map ids_ty ~f:(fun (_l,r,_ty) -> pvar ~loc r) |> ppat_tuple ~loc
-      and body =
-        List.map ids_ty ~f:(fun (l,r,ty) ->
-          compare_of_ty ty (evar ~loc l) (evar ~loc r))
-        |> chain_if
-      in
-      let res =
-        case ~guard:None
-          ~lhs:(ppat_tuple ~loc [ pconstruct cd (Some lpatt)
-                                ; pconstruct cd (Some rpatt)
-                                ])
-          ~rhs:body
-      in
-      if rightmost then
-        [ res ]
-      else
+    | Pcstr_record _ ->
+      Location.raise_errorf ~loc "ppx_sexp_conv: inline records are not supported yet"
+    | Pcstr_tuple pcd_args ->
+      match pcd_args with
+      | [] ->
+        let pcnstr = pconstruct cd None in
         let pany = ppat_any ~loc in
-        let pcnstr = pconstruct cd (Some pany) in
         let case l r n =
           case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
         in
-        [ res
-        ; case pcnstr pany   (-1)
-        ; case pany   pcnstr 1
-        ])
+        if rightmost then
+          [ case pcnstr pcnstr 0 ]
+        else
+          [ case pcnstr pcnstr 0
+          ; case pcnstr pany   (-1)
+          ; case pany pcnstr   1
+          ]
+      | tps ->
+        let ids_ty =
+          List.map tps
+            ~f:(fun ty ->
+              (gen_symbol ~prefix:"_a" (),
+               gen_symbol ~prefix:"_b" (),
+               ty))
+        in
+        let lpatt = List.map ids_ty ~f:(fun (l,_r,_ty) -> pvar ~loc l) |> ppat_tuple ~loc
+        and rpatt = List.map ids_ty ~f:(fun (_l,r,_ty) -> pvar ~loc r) |> ppat_tuple ~loc
+        and body =
+          List.map ids_ty ~f:(fun (l,r,ty) ->
+            compare_of_ty ty (evar ~loc l) (evar ~loc r))
+          |> chain_if
+        in
+        let res =
+          case ~guard:None
+            ~lhs:(ppat_tuple ~loc [ pconstruct cd (Some lpatt)
+                                  ; pconstruct cd (Some rpatt)
+                                  ])
+            ~rhs:body
+        in
+        if rightmost then
+          [ res ]
+        else
+          let pany = ppat_any ~loc in
+          let pcnstr = pconstruct cd (Some pany) in
+          let case l r n =
+            case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
+          in
+          [ res
+          ; case pcnstr pany   (-1)
+          ; case pany   pcnstr 1
+          ])
   |> List.map ~f:List.rev
   |> List.concat
   |> List.rev
