@@ -219,8 +219,28 @@ and branches_of_sum cds =
     if cd.pcd_res <> None then
       Location.raise_errorf ~loc "GADTs are not supported by comparelib";
     match cd.pcd_args with
-    | Pcstr_record _ ->
-      Location.raise_errorf ~loc "ppx_sexp_conv: inline records are not supported yet"
+    | Pcstr_record lds ->
+      let value1 = gen_symbol ~prefix:"_a" () in
+      let value2 = gen_symbol ~prefix:"_b" () in
+      let res =
+        case ~guard:None
+          ~lhs:(ppat_tuple ~loc [ pconstruct cd (Some (pvar ~loc value1))
+                                ; pconstruct cd (Some (pvar ~loc value2))
+                                ])
+          ~rhs:(compare_of_record_no_phys_equal loc lds (evar ~loc value1) (evar ~loc value2))
+      in
+      if rightmost then
+        [ res ]
+      else
+        let pany = ppat_any ~loc in
+        let pcnstr = pconstruct cd (Some pany) in
+        let case l r n =
+          case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
+        in
+        [ res
+        ; case pcnstr pany   (-1)
+        ; case pany   pcnstr 1
+        ]
     | Pcstr_tuple pcd_args ->
       match pcd_args with
       | [] ->
@@ -310,7 +330,7 @@ and compare_of_ty_fun ~type_constraint ty =
       [%e compare_of_ty ty (evar ~loc a) (evar ~loc b) ]
   ]
 
-let compare_of_record _loc lds value1 value2 =
+and compare_of_record_no_phys_equal _loc lds value1 value2 =
   let is_evar = function
     | { pexp_desc = Pexp_ident _; _ } -> true
     | _                               -> false
@@ -324,6 +344,10 @@ let compare_of_record _loc lds value1 value2 =
       (pexp_field ~loc value1 label)
       (pexp_field ~loc value2 label))
   |> chain_if
+
+
+let compare_of_record loc lds value1 value2 =
+  compare_of_record_no_phys_equal loc lds value1 value2
   |> phys_equal_first value1 value2
 
 let compare_of_nil loc type_name v_a v_b =

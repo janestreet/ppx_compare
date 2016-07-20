@@ -90,6 +90,25 @@ module M28 = struct
   let _ = [%compare: (int,float) t] [(1,nan)]
 end
 
+module M29 = struct
+  type t = A of { a : float;
+                  b : float;
+                  c : float;
+                }
+         | B of float * float * float
+  [@@deriving compare]
+end
+
+module M30 = struct
+  type ('a, 'b) t = A of { a : 'a;
+                           b : 'b;
+                           c : float;
+                         }
+                  | B of 'a * 'b
+  [@@deriving compare]
+end
+
+
 module Polyrec = struct
   type ('a, 'b) t = T of ('a option, 'b) t [@@deriving compare]
 
