@@ -1,0 +1,6 @@
+(library
+ ((name ppx_compare_expander)
+  (public_name ppx_compare.expander)
+  (wrapped false)
+  (libraries (ocamlcommon ppx_core))
+  (preprocess ((metaquot All)))))

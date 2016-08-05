@@ -1,0 +1,10 @@
+(library
+ ((name ppx_compare)
+  (public_name ppx_compare)
+  (public_release ((kind ppx_type_conv_plugin)))
+  (wrapped false)
+  (libraries (ppx_core
+              ppx_driver
+              ppx_type_conv
+              ppx_compare_expander))
+  (preprocess ((no_preprocessing All)))))
