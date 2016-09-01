@@ -48,28 +48,18 @@ let rec chain_if  = function
 let base_types =
   [ "nativeint"; "int64"; "int32"; "char"; "int"; "bool"; "string"; "float" ]
 
-let compare_named (name : Longident.t Located.t) =
+let compare_type_constr (name : Longident.t Located.t) args =
   let loc = name.loc in
-  let path, id =
-    match name.txt with
-    | Ldot (path, id) -> (Some path, id)
-    | Lident id       -> (None     , id)
-    | Lapply _        -> assert false
-  in
-  let ldot path id : Longident.t Located.t =
-    match path with
-    | Some p -> { name with txt = Ldot (p, id) }
-    | None   -> { name with txt = Lident id    }
-  in
-  match path, id with
-  | None, v when List.mem ~set:base_types v ->
+  match name.txt with
+  | Lident "unit" -> eapply ~loc [%expr (fun _ _ -> 0)] args
+  | Lident v when List.mem ~set:base_types v ->
     let t = ptyp_constr ~loc name [] in
-    [%expr (Pervasives.compare : [%t t] -> [%t t] -> int)]
-  | None, "unit" -> [%expr  fun _ _ -> 0 ]
-  | path, "t" ->
-    pexp_ident ~loc (ldot path "compare")
-  | path, tn ->
-    pexp_ident ~loc (ldot path @@ "compare_" ^ tn)
+    eapply ~loc [%expr (Pervasives.compare : [%t t] -> [%t t] -> int)] args
+  | _ ->
+    type_constr_conv ~loc name args
+      ~f:(function
+        | "t" -> "compare"
+        | s -> "compare_" ^ s)
 
 let tp_name n = Printf.sprintf "_cmp__%s" n
 
@@ -97,8 +87,7 @@ let rec compare_applied ty value1 value2 =
     compare_list t value1 value2
   | Ptyp_constr (name, ta) ->
     let args = List.map ta ~f:(compare_of_ty_fun ~type_constraint:false) in
-    let cmp = eapply ~loc (compare_named name) args in
-    eapply ~loc cmp [value1; value2]
+    compare_type_constr name (args @ [value1; value2])
   | _ -> assert false
 
 and compare_list t value1 value2 =
@@ -163,30 +152,21 @@ and compare_variant loc row_fields value1 value2 =
                               ; ppat_variant ~loc cnstr (Some (pvar ~loc v2))
                               ])
         ~rhs:body
-    | Rinherit ({ ptyp_desc = Ptyp_constr (id, [_]); _ } as ty) ->
+    | Rinherit ({ ptyp_desc = Ptyp_constr (id, _); _ } as ty) ->
       (* quite sadly, this code doesn't handle:
          type 'a id = 'a with compare
          type t = [ `a | [ `b ] id ] with compare
          because it will generate a pattern #id, when id is not even a polymorphic
          variant in the first place.
-         The culprit is caml though, since it only allows #id but not #([`b] id) *)
-      let v1 = gen_symbol ~prefix:"_left" ()
-      and v2 = gen_symbol ~prefix:"_right" () in
-      let call = compare_applied ty (evar ~loc v1) (evar ~loc v2) in
-      case ~guard:None
-        ~lhs:(ppat_tuple ~loc [ ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v1)
-                              ; ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v2)
-                              ])
-        ~rhs:call
-    | Rinherit { ptyp_desc = Ptyp_constr (id, []); _ } ->
-      let call = compare_named id in
+         The culprit is caml though, since it only allows #id but not #([`b] id)
+      *)
       let v1 = gen_symbol ~prefix:"_left" ()
       and v2 = gen_symbol ~prefix:"_right" () in
       case ~guard:None
         ~lhs:(ppat_tuple ~loc [ ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v1)
                               ; ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v2)
                               ])
-        ~rhs:(eapply ~loc call [evar ~loc v1; evar ~loc v2])
+        ~rhs:(compare_applied ty (evar ~loc v1) (evar ~loc v2))
     | Rinherit ty ->
       Location.raise_errorf ~loc:ty.ptyp_loc "Ppx_compare.compare_variant: unknown type"
   in
@@ -302,8 +282,6 @@ and compare_sum loc cds value1 value2 =
 and compare_of_ty ty value1 value2 =
   let loc = ty.ptyp_loc in
   match ty.ptyp_desc with
-  | Ptyp_constr (id, []) ->
-    eapply ~loc (compare_named id) [value1; value2]
   | Ptyp_constr _ -> compare_applied ty value1 value2
   | Ptyp_tuple tys -> compare_of_tuple loc tys value1 value2
   | Ptyp_var name -> eapply ~loc (evar ~loc @@ tp_name name) [value1; value2]

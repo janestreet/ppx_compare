@@ -143,6 +143,10 @@ module Variant_inclusion = struct
   type 'a type2 = [ 'a type1 | `T2 ] [@@deriving compare]
   type 'a type3 = [ `T3 | 'a type1 ] [@@deriving compare]
   type 'a type4 = [ 'a type2 | `T4 | 'a type3 ] [@@deriving compare]
+  type 'a id = 'a [@@deriving compare]
+
+  type ('a, 'b) u = [`u of 'a * 'b] [@@deriving compare]
+  type t = [ | (int, int) u ] [@@deriving compare]
 end
 
 module Equal = struct
