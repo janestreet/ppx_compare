@@ -159,3 +159,19 @@ module Equal = struct
   let%test _ = [%compare.equal: string] "hello" "hello"
   let%test _ = not ([%compare.equal: string] "hello" "goodbye")
 end
+
+module Type_extensions : sig
+  (* Making sure we don't generate [_ t -> _ t -> int], as
+     that's too general. *)
+  module type S = sig
+    type 'a t
+    val compare : [%compare: _ t]
+    val equal : [%compare.equal: _ t]
+  end
+end = struct
+  module type S = sig
+    type 'a t
+    val compare : 'a t -> 'a t -> int
+    val equal : 'a t -> 'a t -> bool
+  end
+end

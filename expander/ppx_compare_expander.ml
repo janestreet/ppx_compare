@@ -48,20 +48,13 @@ let rec chain_if  = function
 let base_types =
   [ "nativeint"; "int64"; "int32"; "char"; "int"; "bool"; "string"; "float" ]
 
-let compare_type_constr (name : Longident.t Located.t) args =
-  let loc = name.loc in
-  match name.txt with
-  | Lident "unit" -> eapply ~loc [%expr (fun _ _ -> 0)] args
-  | Lident v when List.mem ~set:base_types v ->
-    let t = ptyp_constr ~loc name [] in
-    eapply ~loc [%expr (Pervasives.compare : [%t t] -> [%t t] -> int)] args
-  | _ ->
-    type_constr_conv ~loc name args
-      ~f:(function
-        | "t" -> "compare"
-        | s -> "compare_" ^ s)
-
 let tp_name n = Printf.sprintf "_cmp__%s" n
+
+let compare_type ~loc ty =
+  [%type: [%t ty] -> [%t ty] -> int]
+
+let equal_type ~loc ty =
+  [%type: [%t ty] -> [%t ty] -> bool]
 
 let rec compare_applied ty value1 value2 =
   let loc = ty.ptyp_loc in
@@ -85,9 +78,17 @@ let rec compare_applied ty value1 value2 =
     compare_array t value1 value2
   | Ptyp_constr ({ txt = Lident "list"; _ }, [t]) ->
     compare_list t value1 value2
+  | Ptyp_constr ({ txt = Lident "unit"; _ }, []) ->
+    [%expr let () = [%e value1] and () = [%e value2] in 0]
+  | Ptyp_constr (({ txt = Lident v; _ } as name), []) when List.mem ~set:base_types v ->
+    let t = ptyp_constr ~loc name [] in
+    [%expr (Pervasives.compare : [%t t] -> [%t t] -> int) [%e value1] [%e value2]]
   | Ptyp_constr (name, ta) ->
-    let args = List.map ta ~f:(compare_of_ty_fun ~type_constraint:false) in
-    compare_type_constr name (args @ [value1; value2])
+    let args = List.map ta ~f:(compare_of_ty_fun ~type_constraint:false) @ [value1; value2] in
+    type_constr_conv ~loc:name.loc name args
+      ~f:(function
+        | "t" -> "compare"
+        | s -> "compare_" ^ s)
   | _ -> assert false
 
 and compare_list t value1 value2 =
@@ -342,10 +343,7 @@ let compare_of_nil loc type_name v_a v_b =
 
 let scheme_of_td td =
   let loc = td.ptype_loc in
-  let type_ =
-    combinator_type_of_type_declaration td
-      ~f:(fun ~loc ty -> [%type: [%t ty] -> [%t ty] -> int])
-  in
+  let type_ = combinator_type_of_type_declaration td ~f:compare_type in
   match td.ptype_params with
   | [] -> type_
   | l ->
@@ -417,10 +415,7 @@ let str_type_decl ~loc ~path:_ (rec_flag, tds) =
 
 let sig_type_decl ~loc:_ ~path:_ (_rec_flag, tds) =
   List.map tds ~f:(fun td ->
-    let compare_of =
-      combinator_type_of_type_declaration td ~f:(fun ~loc ty ->
-        [%type: [%t ty] -> [%t ty] -> int])
-    in
+    let compare_of = combinator_type_of_type_declaration td ~f:compare_type in
     let name =
       match td.ptype_name.txt with
       | "t" -> "compare"

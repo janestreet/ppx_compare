@@ -1,6 +1,6 @@
 version = "$(pkg_version)"
 description = "Generation of comparison functions from types"
-requires = "ppx_compare.expander ppx_core ppx_driver ppx_type_conv"
+requires = "compiler-libs.common ppx_compare.expander ppx_core ppx_driver ppx_type_conv"
 archive(ppx_driver, byte  ) = "ppx_compare.cma"
 archive(ppx_driver, native) = "ppx_compare.cmxa"
 plugin(ppx_driver, byte  ) = "ppx_compare.cma"

@@ -6,5 +6,6 @@
   (libraries (ppx_core
               ppx_driver
               ppx_type_conv
-              ppx_compare_expander))
+              ppx_compare_expander
+              ocamlcommon))
   (preprocess ((no_preprocessing All)))))
