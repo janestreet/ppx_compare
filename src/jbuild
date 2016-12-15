@@ -1,11 +1,10 @@
 (library
  ((name ppx_compare)
   (public_name ppx_compare)
-  (public_release ((kind ppx_type_conv_plugin)))
-  (wrapped false)
+  (kind ppx_type_conv_plugin)
   (libraries (ppx_core
               ppx_driver
               ppx_type_conv
               ppx_compare_expander
-              ocamlcommon))
-  (preprocess ((no_preprocessing All)))))
+              compiler-libs.common))
+  (preprocess no_preprocessing)))

@@ -395,8 +395,6 @@ let compare_of_td td =
   else value_binding ~loc ~pat:bnd
          ~expr:(pexp_constraint ~loc (eabstract ~loc patts body) (scheme_of_td td))
 
-let tds_contains_t tds = List.exists tds ~f:(fun td -> td.ptype_name.txt = "t")
-
 let str_type_decl ~loc ~path:_ (rec_flag, tds) =
   let rec_flag = really_recursive rec_flag tds in
   let bindings =
@@ -405,13 +403,7 @@ let str_type_decl ~loc ~path:_ (rec_flag, tds) =
     |> List.map ~f:compare_of_td
     |> List.rev
   in
-  let body = pstr_value ~loc rec_flag bindings in
-  if tds_contains_t tds then
-    [ body
-    ; [%stri let compare_t = compare ]
-    ]
-  else
-    [ body ]
+  [ pstr_value ~loc rec_flag bindings ]
 
 let sig_type_decl ~loc:_ ~path:_ (_rec_flag, tds) =
   List.map tds ~f:(fun td ->

@@ -39,15 +39,14 @@ type t = S.t * T.t [@@deriving compare]
 ```
 
 will call the functions `S.compare` and `T.compare` instead of calling `S.compare_t` and
-`T.compare_t`. This will also generate a `compare : t -> t -> int` function.  The
-`compare_t` function is also generated for consistency's sake.
+`T.compare_t`. This will also generate a `compare : t -> t -> int` function.
 
 
 Signature
 ---------
 
 `type t [@@deriving compare]` in a module signature will add `val compare : t -> t -> int`
-in the signature. Note that the function `compare_t` is not exported.
+in the signature.
 
 
 Comparison without a type definition
