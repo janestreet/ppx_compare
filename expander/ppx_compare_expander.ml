@@ -33,7 +33,7 @@ let with_tuple loc ~value ~tys f =
 let phys_equal_first a b cmp =
   let loc = cmp.pexp_loc in
   [%expr
-    if Pervasives.(==) [%e a] [%e b] then 0 else [%e cmp]
+    if Ppx_compare_lib.phys_equal [%e a] [%e b] then 0 else [%e cmp]
   ]
 
 let rec chain_if  = function
@@ -42,11 +42,10 @@ let rec chain_if  = function
   | x :: xs ->
     let loc = x.pexp_loc in
     [%expr
-      let ret = [%e x] in if Pervasives.(<>) ret 0 then ret else [%e chain_if xs]
+      match [%e x] with
+      | 0 -> [%e chain_if xs]
+      | n -> n
     ]
-
-let base_types =
-  [ "nativeint"; "int64"; "int32"; "char"; "int"; "bool"; "string"; "float" ]
 
 let tp_name n = Printf.sprintf "_cmp__%s" n
 
@@ -56,78 +55,14 @@ let compare_type ~loc ty =
 let equal_type ~loc ty =
   [%type: [%t ty] -> [%t ty] -> bool]
 
-let rec compare_applied ty value1 value2 =
-  let loc = ty.ptyp_loc in
-  match ty.ptyp_desc with
-  | Ptyp_constr ({ txt = Lident "ref"; _ }, [t]) ->
-    let e1 = [%expr [%e value1].Pervasives.contents ] in
-    let e2 = [%expr [%e value2].Pervasives.contents ] in
-    compare_of_ty t e1 e2
-  | Ptyp_constr ({ txt = Lident "option"; _ }, [t]) ->
-    let a = gen_symbol () in
-    let b = gen_symbol () in
-    [%expr
-      match ([%e value1], [%e value2]) with
-      | (None, None)   -> 0
-      | (None, Some _) -> -1
-      | (Some _, None) -> 1
-      | (Some [%p pvar ~loc a], Some [%p pvar ~loc b]) ->
-        [%e compare_of_ty t (evar ~loc a) (evar ~loc b)]
-    ]
-  | Ptyp_constr ({ txt = Lident "array"; _ }, [t]) ->
-    compare_array t value1 value2
-  | Ptyp_constr ({ txt = Lident "list"; _ }, [t]) ->
-    compare_list t value1 value2
-  | Ptyp_constr ({ txt = Lident "unit"; _ }, []) ->
-    [%expr let () = [%e value1] and () = [%e value2] in 0]
-  | Ptyp_constr (({ txt = Lident v; _ } as name), []) when List.mem ~set:base_types v ->
-    let t = ptyp_constr ~loc name [] in
-    [%expr (Pervasives.compare : [%t t] -> [%t t] -> int) [%e value1] [%e value2]]
-  | Ptyp_constr (name, ta) ->
-    let args = List.map ta ~f:(compare_of_ty_fun ~type_constraint:false) @ [value1; value2] in
-    type_constr_conv ~loc:name.loc name args
-      ~f:(function
-        | "t" -> "compare"
-        | s -> "compare_" ^ s)
-  | _ -> assert false
+let function_name = function
+  | "t" -> "compare"
+  | s -> "compare_" ^ s
 
-and compare_list t value1 value2 =
-  let loc = t.ptyp_loc in
-  [%expr
-    let rec loop a b =
-      match (a, b) with
-      | ([], []) -> 0
-      | ([], _) -> (-1)
-      | (_, []) -> 1
-      | (x :: xs, y :: ys) ->
-        let n = [%e compare_of_ty t [%expr x] [%expr y] ]
-        in if Pervasives.(=) n 0 then loop xs ys else n
-    in loop [%e value1] [%e value2]
-  ]
-
-and compare_array t value1 value2 =
-  let loc = t.ptyp_loc in
-  [%expr
-    if Pervasives.(==) [%e value1] [%e value2] then
-      0
-    else
-      let len_a = Array.length [%e value1] in
-      let len_b = Array.length [%e value2] in
-      let ret = Pervasives.compare len_a len_b in
-      if Pervasives.(<>) ret 0 then ret
-      else
-        let rec loop i =
-          if Pervasives.(=) i len_a then
-            0
-          else
-            let l = Array.unsafe_get [%e value1] i
-            and r = Array.unsafe_get [%e value2] i in
-            let res = [%e compare_of_ty t [%expr  l ] [%expr  r ]] in
-            if Pervasives.(<>) res 0 then res
-            else loop (i+1)
-        in
-        loop 0
-  ]
+let rec compare_applied ~constructor ~args value1 value2 =
+  let args = List.map args ~f:(compare_of_ty_fun ~type_constraint:false) @ [value1; value2] in
+  type_constr_conv ~loc:(Located.loc constructor) constructor args
+    ~f:function_name
 
 and compare_of_tuple loc tys value1 value2 =
   with_tuple loc ~value:value1 ~tys (fun elems1 ->
@@ -153,7 +88,7 @@ and compare_variant loc row_fields value1 value2 =
                               ; ppat_variant ~loc cnstr (Some (pvar ~loc v2))
                               ])
         ~rhs:body
-    | Rinherit ({ ptyp_desc = Ptyp_constr (id, _); _ } as ty) ->
+    | Rinherit { ptyp_desc = Ptyp_constr (id, args); _ } ->
       (* quite sadly, this code doesn't handle:
          type 'a id = 'a with compare
          type t = [ `a | [ `b ] id ] with compare
@@ -167,7 +102,7 @@ and compare_variant loc row_fields value1 value2 =
         ~lhs:(ppat_tuple ~loc [ ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v1)
                               ; ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v2)
                               ])
-        ~rhs:(compare_applied ty (evar ~loc v1) (evar ~loc v2))
+        ~rhs:(compare_applied ~constructor:id ~args (evar ~loc v1) (evar ~loc v2))
     | Rinherit ty ->
       Location.raise_errorf ~loc:ty.ptyp_loc "Ppx_compare.compare_variant: unknown type"
   in
@@ -180,7 +115,8 @@ and compare_variant loc row_fields value1 value2 =
         (l @
          (* Providing we didn't screw up badly we now know that the tags of the variants
             are different. We let pervasive do its magic. *)
-         [ case ~guard:None ~lhs:[%pat? (x, y)] ~rhs:[%expr Pervasives.compare x y] ])
+         [ case ~guard:None ~lhs:[%pat? (x, y)]
+             ~rhs:[%expr Ppx_compare_lib.polymorphic_compare x y] ])
   in
   phys_equal_first value1 value2 e
 
@@ -188,82 +124,82 @@ and branches_of_sum cds =
   let rightmost_index = (List.length cds - 1) in
   List.concat
     (List.mapi cds ~f:(fun i cd ->
-      let rightmost = i = rightmost_index in
-      let loc = cd.pcd_loc in
-      if cd.pcd_res <> None then
-        Location.raise_errorf ~loc "GADTs are not supported by comparelib";
-      match cd.pcd_args with
-      | Pcstr_record lds ->
-        let value1 = gen_symbol ~prefix:"_a" () in
-        let value2 = gen_symbol ~prefix:"_b" () in
-        let res =
-          case ~guard:None
-            ~lhs:(ppat_tuple ~loc [ pconstruct cd (Some (pvar ~loc value1))
-                                  ; pconstruct cd (Some (pvar ~loc value2))
-                                  ])
-            ~rhs:(compare_of_record_no_phys_equal loc lds (evar ~loc value1) (evar ~loc value2))
-        in
-        if rightmost then
-          [ res ]
-        else
-          let pany = ppat_any ~loc in
-          let pcnstr = pconstruct cd (Some pany) in
-          let case l r n =
-            case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
-          in
-          [ res
-          ; case pcnstr pany   (-1)
-          ; case pany   pcnstr 1
-          ]
-      | Pcstr_tuple pcd_args ->
-        match pcd_args with
-        | [] ->
-          let pcnstr = pconstruct cd None in
-          let pany = ppat_any ~loc in
-          let case l r n =
-            case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
-          in
-          if rightmost then
-            [ case pcnstr pcnstr 0 ]
-          else
-            [ case pcnstr pcnstr 0
-            ; case pcnstr pany   (-1)
-            ; case pany pcnstr   1
-            ]
-        | tps ->
-          let ids_ty =
-            List.map tps
-              ~f:(fun ty ->
-                let a = gen_symbol ~prefix:"_a" () in
-                let b = gen_symbol ~prefix:"_b" () in
-                (a, b, ty))
-          in
-          let lpatt = List.map ids_ty ~f:(fun (l,_r,_ty) -> pvar ~loc l) |> ppat_tuple ~loc
-          and rpatt = List.map ids_ty ~f:(fun (_l,r,_ty) -> pvar ~loc r) |> ppat_tuple ~loc
-          and body =
-            List.map ids_ty ~f:(fun (l,r,ty) ->
-              compare_of_ty ty (evar ~loc l) (evar ~loc r))
-            |> chain_if
-          in
-          let res =
-            case ~guard:None
-              ~lhs:(ppat_tuple ~loc [ pconstruct cd (Some lpatt)
-                                    ; pconstruct cd (Some rpatt)
-                                    ])
-              ~rhs:body
-          in
-          if rightmost then
-            [ res ]
-          else
-            let pany = ppat_any ~loc in
-            let pcnstr = pconstruct cd (Some pany) in
-            let case l r n =
-              case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
-            in
-            [ res
-            ; case pcnstr pany   (-1)
-            ; case pany   pcnstr 1
-            ]))
+       let rightmost = i = rightmost_index in
+       let loc = cd.pcd_loc in
+       if cd.pcd_res <> None then
+         Location.raise_errorf ~loc "GADTs are not supported by comparelib";
+       match cd.pcd_args with
+       | Pcstr_record lds ->
+         let value1 = gen_symbol ~prefix:"_a" () in
+         let value2 = gen_symbol ~prefix:"_b" () in
+         let res =
+           case ~guard:None
+             ~lhs:(ppat_tuple ~loc [ pconstruct cd (Some (pvar ~loc value1))
+                                   ; pconstruct cd (Some (pvar ~loc value2))
+                                   ])
+             ~rhs:(compare_of_record_no_phys_equal loc lds (evar ~loc value1) (evar ~loc value2))
+         in
+         if rightmost then
+           [ res ]
+         else
+           let pany = ppat_any ~loc in
+           let pcnstr = pconstruct cd (Some pany) in
+           let case l r n =
+             case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
+           in
+           [ res
+           ; case pcnstr pany   (-1)
+           ; case pany   pcnstr 1
+           ]
+       | Pcstr_tuple pcd_args ->
+         match pcd_args with
+         | [] ->
+           let pcnstr = pconstruct cd None in
+           let pany = ppat_any ~loc in
+           let case l r n =
+             case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
+           in
+           if rightmost then
+             [ case pcnstr pcnstr 0 ]
+           else
+             [ case pcnstr pcnstr 0
+             ; case pcnstr pany   (-1)
+             ; case pany pcnstr   1
+             ]
+         | tps ->
+           let ids_ty =
+             List.map tps
+               ~f:(fun ty ->
+                 let a = gen_symbol ~prefix:"_a" () in
+                 let b = gen_symbol ~prefix:"_b" () in
+                 (a, b, ty))
+           in
+           let lpatt = List.map ids_ty ~f:(fun (l,_r,_ty) -> pvar ~loc l) |> ppat_tuple ~loc
+           and rpatt = List.map ids_ty ~f:(fun (_l,r,_ty) -> pvar ~loc r) |> ppat_tuple ~loc
+           and body =
+             List.map ids_ty ~f:(fun (l,r,ty) ->
+               compare_of_ty ty (evar ~loc l) (evar ~loc r))
+             |> chain_if
+           in
+           let res =
+             case ~guard:None
+               ~lhs:(ppat_tuple ~loc [ pconstruct cd (Some lpatt)
+                                     ; pconstruct cd (Some rpatt)
+                                     ])
+               ~rhs:body
+           in
+           if rightmost then
+             [ res ]
+           else
+             let pany = ppat_any ~loc in
+             let pcnstr = pconstruct cd (Some pany) in
+             let case l r n =
+               case ~guard:None ~lhs:(ppat_tuple ~loc [l; r]) ~rhs:(eint ~loc n)
+             in
+             [ res
+             ; case pcnstr pany   (-1)
+             ; case pany   pcnstr 1
+             ]))
 
 and compare_sum loc cds value1 value2 =
   let mcs = branches_of_sum cds in
@@ -273,7 +209,7 @@ and compare_sum loc cds value1 value2 =
 and compare_of_ty ty value1 value2 =
   let loc = ty.ptyp_loc in
   match ty.ptyp_desc with
-  | Ptyp_constr _ -> compare_applied ty value1 value2
+  | Ptyp_constr (constructor, args) -> compare_applied ~constructor ~args value1 value2
   | Ptyp_tuple tys -> compare_of_tuple loc tys value1 value2
   | Ptyp_var name -> eapply ~loc (evar ~loc @@ tp_name name) [value1; value2]
   | Ptyp_arrow _ ->
@@ -288,16 +224,26 @@ and compare_of_ty_fun ~type_constraint ty =
   let loc = ty.ptyp_loc in
   let a = gen_symbol ~prefix:"a" () in
   let b = gen_symbol ~prefix:"b" () in
-  let mk_pat x =
+  let e_a = evar ~loc a in
+  let e_b = evar ~loc b in
+  match compare_of_ty ty e_a e_b with
+  (* Avoid generating [fun a b -> f a b] *)
+  | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident _; _ } as e,
+                              [(Nolabel, x); (Nolabel, y)])
+    ; pexp_attributes = []
+    ; _ } when e_a = x && e_b = y ->
     if type_constraint then
-      ppat_constraint ~loc (pvar ~loc x) ty
+      pexp_constraint ~loc e (compare_type ~loc ty)
     else
-      pvar ~loc x
-  in
-  [%expr
-    fun [%p mk_pat a] [%p mk_pat b] ->
-      [%e compare_of_ty ty (evar ~loc a) (evar ~loc b) ]
-  ]
+      e
+  | e ->
+    let mk_pat x =
+      if type_constraint then
+        ppat_constraint ~loc (pvar ~loc x) ty
+      else
+        pvar ~loc x
+    in
+    [%expr fun [%p mk_pat a] [%p mk_pat b] -> [%e e] ]
 
 and compare_of_record_no_phys_equal _loc lds value1 value2 =
   let is_evar = function
@@ -319,16 +265,10 @@ let compare_of_record loc lds value1 value2 =
   compare_of_record_no_phys_equal loc lds value1 value2
   |> phys_equal_first value1 value2
 
-let compare_of_nil loc type_name v_a v_b =
-  let str =
-    Printf.sprintf
-      "Compare called on the type %s, which is abtract in an implementation."
-      type_name
-  in
+let compare_abstract loc type_name v_a v_b =
   [%expr
-    let _ = [%e v_a] in
-    let _ = [%e v_b] in
-    failwith [%e estring ~loc str]
+    Ppx_compare_lib.compare_abstract ~type_name:[%e estring ~loc type_name]
+      [%e v_a] [%e v_b]
   ]
 
 let scheme_of_td td =
@@ -355,7 +295,7 @@ let compare_of_td td =
         "ppx_compare: open types are not yet supported"
     | Ptype_abstract ->
       match td.ptype_manifest with
-      | None -> compare_of_nil loc td.ptype_name.txt v_a v_b
+      | None -> compare_abstract loc td.ptype_name.txt v_a v_b
       | Some ty ->
         match ty.ptyp_desc with
         | Ptyp_variant (_, Open, _) | Ptyp_variant (_, Closed, Some (_ :: _)) ->
@@ -371,13 +311,7 @@ let compare_of_td td =
       ~f:(fun p -> tp_name (get_type_param_name p).txt)
   in
   let patts = List.map (extra_names @ [a; b]) ~f:(pvar ~loc)
-  and bnd =
-    let tn = td.ptype_name.txt in
-    pvar ~loc (if tn = "t" then
-                 "compare"
-               else
-                 "compare_" ^ tn)
-  in
+  and bnd = pvar ~loc (function_name td.ptype_name.txt) in
   let poly_scheme = (match extra_names with [] -> false | _::_ -> true) in
   if poly_scheme
   then value_binding ~loc ~pat:(ppat_constraint ~loc bnd (scheme_of_td td))
@@ -393,11 +327,7 @@ let str_type_decl ~loc ~path:_ (rec_flag, tds) =
 let sig_type_decl ~loc:_ ~path:_ (_rec_flag, tds) =
   List.map tds ~f:(fun td ->
     let compare_of = combinator_type_of_type_declaration td ~f:compare_type in
-    let name =
-      match td.ptype_name.txt with
-      | "t" -> "compare"
-      | tn  -> "compare_" ^ tn
-    in
+    let name = function_name td.ptype_name.txt in
     let loc = td.ptype_loc in
     psig_value ~loc (value_description ~loc ~name:{ td.ptype_name with txt = name }
                        ~type_:compare_of ~prim:[]))

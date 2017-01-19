@@ -1,0 +1,6 @@
+(library
+ ((name        ppx_compare_lib)
+  (public_name ppx_compare.runtime-lib)
+  (libraries (base))
+  (js_of_ocaml ())
+  (preprocess no_preprocessing)))

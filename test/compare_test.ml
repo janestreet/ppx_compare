@@ -1,16 +1,19 @@
-let ignore = `Should_refer_to_pervasives_explicitely
-let ( = ) = `Should_refer_to_pervasives_explicitely
-let ( <> ) = `Should_refer_to_pervasives_explicitely
-let ( == ) = `Should_refer_to_pervasives_explicitely
-let ( != ) = `Should_refer_to_pervasives_explicitely
-let ( > ) = `Should_refer_to_pervasives_explicitely
-let ( < ) = `Should_refer_to_pervasives_explicitely
-let ( >= ) = `Should_refer_to_pervasives_explicitely
-let ( <= ) = `Should_refer_to_pervasives_explicitely
-let ( max ) = `Should_refer_to_pervasives_explicitely
-let ( min ) = `Should_refer_to_pervasives_explicitely
-let ( equal ) = `Should_refer_to_pervasives_explicitely
-let ( compare ) = `Should_refer_to_pervasives_explicitely
+open Ppx_compare_lib.Builtin
+
+let failwith = `Should_refer_to_runtime_lib
+let ignore = `Should_refer_to_runtime_lib
+let ( = ) = `Should_refer_to_runtime_lib
+let ( <> ) = `Should_refer_to_runtime_lib
+let ( == ) = `Should_refer_to_runtime_lib
+let ( != ) = `Should_refer_to_runtime_lib
+let ( > ) = `Should_refer_to_runtime_lib
+let ( < ) = `Should_refer_to_runtime_lib
+let ( >= ) = `Should_refer_to_runtime_lib
+let ( <= ) = `Should_refer_to_runtime_lib
+let ( max ) = `Should_refer_to_runtime_lib
+let ( min ) = `Should_refer_to_runtime_lib
+let ( equal ) = `Should_refer_to_runtime_lib
+let ( compare ) = `Should_refer_to_runtime_lib
 
 module M1 = struct type t = unit [@@deriving compare] end
 
@@ -152,6 +155,16 @@ end
 module Equal = struct
   let%test _ = [%compare.equal: int list] [7; 8; 9] [7; 8; 9]
   let%test _ = not ([%compare.equal: int list] [7; 8] [7; 8; 9])
+
+  let%test _ =
+    match [%compare: int * int] (1, 2) (1, 3) with
+    | -1 -> true
+    | _  -> false
+
+  let%test _ =
+    match [%compare: int * int] (1, 3) (1, 2) with
+    | 1 -> true
+    | _ -> false
 
   let%test _ = [%compare.equal: string option] None None
   let%test _ = not ([%compare.equal: string option] (Some "foo") None)
