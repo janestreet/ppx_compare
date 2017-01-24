@@ -8,12 +8,8 @@
    unnecessary due to the value restriction).
 *)
 
-open StdLabels
-open Ppx_core.Std
-open Parsetree
+open Ppx_core
 open Ast_builder.Default
-
-[@@@metaloc loc]
 
 let with_tuple loc ~value ~tys f =
   (* generate
@@ -67,7 +63,7 @@ let rec compare_applied ~constructor ~args value1 value2 =
 and compare_of_tuple loc tys value1 value2 =
   with_tuple loc ~value:value1 ~tys (fun elems1 ->
     with_tuple loc ~value:value2 ~tys (fun elems2 ->
-      let exprs = List.map2 elems1 elems2 ~f:(fun (v1, t) (v2, _) ->
+      let exprs = List.map2_exn elems1 elems2 ~f:(fun (v1, t) (v2, _) ->
         compare_of_ty t v1 v2)
       in
       chain_if exprs))
@@ -126,7 +122,7 @@ and branches_of_sum cds =
     (List.mapi cds ~f:(fun i cd ->
        let rightmost = i = rightmost_index in
        let loc = cd.pcd_loc in
-       if cd.pcd_res <> None then
+       if Option.is_some cd.pcd_res then
          Location.raise_errorf ~loc "GADTs are not supported by comparelib";
        match cd.pcd_args with
        | Pcstr_record lds ->
@@ -211,7 +207,7 @@ and compare_of_ty ty value1 value2 =
   match ty.ptyp_desc with
   | Ptyp_constr (constructor, args) -> compare_applied ~constructor ~args value1 value2
   | Ptyp_tuple tys -> compare_of_tuple loc tys value1 value2
-  | Ptyp_var name -> eapply ~loc (evar ~loc @@ tp_name name) [value1; value2]
+  | Ptyp_var name -> eapply ~loc (evar ~loc (tp_name name)) [value1; value2]
   | Ptyp_arrow _ ->
     Location.raise_errorf ~loc
       "ppx_compare: Functions can not be compared."
@@ -231,7 +227,8 @@ and compare_of_ty_fun ~type_constraint ty =
   | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident _; _ } as e,
                               [(Nolabel, x); (Nolabel, y)])
     ; pexp_attributes = []
-    ; _ } when e_a = x && e_b = y ->
+    ; _ } when Polymorphic_compare.equal e_a x &&
+               Polymorphic_compare.equal e_b y ->
     if type_constraint then
       pexp_constraint ~loc e (compare_type ~loc ty)
     else

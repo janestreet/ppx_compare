@@ -1,5 +1,4 @@
-open Asttypes
-open Parsetree
+open Ppx_core
 
 (** [compare_type ty] is [ty -> ty -> int] *)
 val compare_type : loc:Location.t -> core_type -> core_type

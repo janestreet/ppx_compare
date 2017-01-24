@@ -1,6 +1,6 @@
 (library
  ((name ppx_compare_expander)
   (public_name ppx_compare.expander)
-  (libraries (compiler-libs.common ppx_core ppx_driver))
+  (libraries (ppx_core ppx_driver))
   (ppx_runtime_libraries (ppx_compare.runtime-lib))
-  (preprocess metaquot)))
+  (preprocess (pps (ppx_metaquot)))))

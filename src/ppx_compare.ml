@@ -1,5 +1,5 @@
 open Ppx_type_conv.Std
-open Ppx_core.Std
+open Ppx_core
 
 let str_type_decl =
   Type_conv.Generator.make_noarg Ppx_compare_expander.str_type_decl
