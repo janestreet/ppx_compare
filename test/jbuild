@@ -4,3 +4,5 @@
 
 (alias ((name DEFAULT)
         (deps (compare_test.ml.pp))))
+
+(jbuild_version jane_street)

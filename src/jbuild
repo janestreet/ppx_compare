@@ -8,3 +8,5 @@
               ppx_compare_expander
               ))
   (preprocess no_preprocessing)))
+
+(jbuild_version jane_street)

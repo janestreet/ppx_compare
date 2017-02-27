@@ -4,3 +4,5 @@
   (libraries (ppx_core ppx_driver))
   (ppx_runtime_libraries (ppx_compare.runtime-lib))
   (preprocess (pps (ppx_metaquot)))))
+
+(jbuild_version jane_street)
