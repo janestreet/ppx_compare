@@ -1,3 +1,8 @@
+---
+title: ppx_compare
+parent: ../README.md
+---
+
 Generation of fast comparison functions from type expressions and definitions.
 
 Ppx_compare is a ppx rewriter that derives comparison functions from type

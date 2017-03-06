@@ -3,6 +3,6 @@
   (public_name ppx_compare.expander)
   (libraries (ppx_core ppx_driver))
   (ppx_runtime_libraries (ppx_compare.runtime-lib))
-  (preprocess (pps (ppx_metaquot)))))
+  (preprocess (pps (ppx_metaquot ppx_driver.runner)))))
 
 (jbuild_version jane_street)

@@ -1,7 +1,7 @@
 (library
  ((name ppx_compare)
   (public_name ppx_compare)
-  (kind ppx_type_conv_plugin)
+  (kind ppx_deriver)
   (libraries (ppx_core
               ppx_driver
               ppx_type_conv
