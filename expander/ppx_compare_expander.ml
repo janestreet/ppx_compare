@@ -222,25 +222,14 @@ and compare_of_ty_fun ~type_constraint ty =
   let b = gen_symbol ~prefix:"b" () in
   let e_a = evar ~loc a in
   let e_b = evar ~loc b in
-  match compare_of_ty ty e_a e_b with
-  (* Avoid generating [fun a b -> f a b] *)
-  | { pexp_desc = Pexp_apply ({ pexp_desc = Pexp_ident _; _ } as e,
-                              [(Nolabel, x); (Nolabel, y)])
-    ; pexp_attributes = []
-    ; _ } when Polymorphic_compare.equal e_a x &&
-               Polymorphic_compare.equal e_b y ->
+  let mk_pat x =
     if type_constraint then
-      pexp_constraint ~loc e (compare_type ~loc ty)
+      ppat_constraint ~loc (pvar ~loc x) ty
     else
-      e
-  | e ->
-    let mk_pat x =
-      if type_constraint then
-        ppat_constraint ~loc (pvar ~loc x) ty
-      else
-        pvar ~loc x
-    in
-    [%expr fun [%p mk_pat a] [%p mk_pat b] -> [%e e] ]
+      pvar ~loc x
+  in
+  eta_reduce_if_possible
+    [%expr fun [%p mk_pat a] [%p mk_pat b] -> [%e compare_of_ty ty e_a e_b] ]
 
 and compare_of_record_no_phys_equal _loc lds value1 value2 =
   let is_evar = function
@@ -277,13 +266,13 @@ let scheme_of_td td =
     let vars = List.map l ~f:(fun x -> (get_type_param_name x).txt) in
     ptyp_poly ~loc vars type_
 
-let compare_of_td td =
+let compare_of_td td ~rec_flag =
   let loc = td.ptype_loc in
   let a = gen_symbol ~prefix:"a" () in
   let b = gen_symbol ~prefix:"b" () in
   let v_a = evar ~loc a in
   let v_b = evar ~loc b in
-  let body =
+  let function_body =
     match td.ptype_kind with
     | Ptype_variant cds -> compare_sum       loc cds v_a v_b
     | Ptype_record  lds -> compare_of_record loc lds v_a v_b
@@ -310,15 +299,15 @@ let compare_of_td td =
   let patts = List.map (extra_names @ [a; b]) ~f:(pvar ~loc)
   and bnd = pvar ~loc (function_name td.ptype_name.txt) in
   let poly_scheme = (match extra_names with [] -> false | _::_ -> true) in
+  let body = eta_reduce_if_possible_and_nonrec ~rec_flag
+               (eabstract ~loc patts function_body) in
   if poly_scheme
-  then value_binding ~loc ~pat:(ppat_constraint ~loc bnd (scheme_of_td td))
-         ~expr:(eabstract ~loc patts body)
-  else value_binding ~loc ~pat:bnd
-         ~expr:(pexp_constraint ~loc (eabstract ~loc patts body) (scheme_of_td td))
+  then value_binding ~loc ~pat:(ppat_constraint ~loc bnd (scheme_of_td td)) ~expr:body
+  else value_binding ~loc ~pat:bnd ~expr:(pexp_constraint ~loc body (scheme_of_td td))
 
 let str_type_decl ~loc ~path:_ (rec_flag, tds) =
   let rec_flag = really_recursive rec_flag tds in
-  let bindings = List.map tds ~f:compare_of_td in
+  let bindings = List.map tds ~f:(compare_of_td ~rec_flag) in
   [ pstr_value ~loc rec_flag bindings ]
 
 let sig_type_decl ~loc:_ ~path:_ (_rec_flag, tds) =
