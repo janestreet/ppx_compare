@@ -1,7 +1,5 @@
----
-title: ppx_compare
-parent: ../README.md
----
+ppx_compare
+===========
 
 Generation of fast comparison functions from type expressions and definitions.
 
