@@ -11,6 +11,18 @@
 open Ppx_core
 open Ast_builder.Default
 
+module Attrs = struct
+  let ignore =
+    Attribute.declare "compare.ignore"
+      Attribute.Context.label_declaration
+      Ast_pattern.(pstr nil)
+      ()
+end
+
+let str_attributes = [
+  Attribute.T Attrs.ignore
+]
+
 let with_tuple loc ~value ~tys f =
   (* generate
      let id_1, id_2, id_3, ... id_n = value in expr
@@ -32,14 +44,14 @@ let phys_equal_first a b cmp =
     if Ppx_compare_lib.phys_equal [%e a] [%e b] then 0 else [%e cmp]
   ]
 
-let rec chain_if  = function
-  | [] -> assert false
+let rec chain_if ~loc = function
+  | [] -> [%expr 0]
   | [x] -> x
   | x :: xs ->
     let loc = x.pexp_loc in
     [%expr
       match [%e x] with
-      | 0 -> [%e chain_if xs]
+      | 0 -> [%e chain_if ~loc xs]
       | n -> n
     ]
 
@@ -66,7 +78,7 @@ and compare_of_tuple loc tys value1 value2 =
       let exprs = List.map2_exn elems1 elems2 ~f:(fun (v1, t) (v2, _) ->
         compare_of_ty t v1 v2)
       in
-      chain_if exprs))
+      chain_if ~loc exprs))
 
 and compare_variant loc row_fields value1 value2 =
   let map = function
@@ -175,7 +187,7 @@ and branches_of_sum cds =
            and body =
              List.map ids_ty ~f:(fun (l,r,ty) ->
                compare_of_ty ty (evar ~loc l) (evar ~loc r))
-             |> chain_if
+             |> chain_if ~loc
            in
            let res =
              case ~guard:None
@@ -231,20 +243,24 @@ and compare_of_ty_fun ~type_constraint ty =
   eta_reduce_if_possible
     [%expr fun [%p mk_pat a] [%p mk_pat b] -> [%e compare_of_ty ty e_a e_b] ]
 
-and compare_of_record_no_phys_equal _loc lds value1 value2 =
+and compare_of_record_no_phys_equal loc lds value1 value2 =
   let is_evar = function
     | { pexp_desc = Pexp_ident _; _ } -> true
     | _                               -> false
   in
   assert (is_evar value1);
   assert (is_evar value2);
-  List.map lds ~f:(fun ld ->
+  List.filter lds ~f:(fun ld ->
+    match Attribute.get Attrs.ignore ld with
+    | None -> true
+    | Some () -> false)
+  |> List.map ~f:(fun ld ->
     let loc = ld.pld_loc in
     let label = Located.map lident ld.pld_name in
     compare_of_ty ld.pld_type
       (pexp_field ~loc value1 label)
       (pexp_field ~loc value2 label))
-  |> chain_if
+  |> chain_if ~loc
 
 
 let compare_of_record loc lds value1 value2 =
@@ -306,7 +322,17 @@ let compare_of_td td ~rec_flag =
   else value_binding ~loc ~pat:bnd ~expr:(pexp_constraint ~loc body (scheme_of_td td))
 
 let str_type_decl ~loc ~path:_ (rec_flag, tds) =
-  let rec_flag = really_recursive rec_flag tds in
+  let rec_flag =
+    (object
+      inherit type_is_recursive rec_flag tds as super
+
+      method! label_declaration ld =
+        match Attribute.get Attrs.ignore ld with
+        | None -> super#label_declaration ld
+        | Some () -> ()
+
+    end)#go ()
+  in
   let bindings = List.map tds ~f:(compare_of_td ~rec_flag) in
   [ pstr_value ~loc rec_flag bindings ]
 

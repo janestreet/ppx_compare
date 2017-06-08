@@ -3,6 +3,7 @@ open Ppx_core
 
 let str_type_decl =
   Type_conv.Generator.make_noarg Ppx_compare_expander.str_type_decl
+    ~attributes:Ppx_compare_expander.str_attributes
 
 let sig_type_decl =
   Type_conv.Generator.make_noarg Ppx_compare_expander.sig_type_decl

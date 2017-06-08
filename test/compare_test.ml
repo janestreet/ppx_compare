@@ -188,3 +188,31 @@ end = struct
     val equal : 'a t -> 'a t -> bool
   end
 end
+
+module No_comparing1 = struct
+
+  type t =
+    { a : int [@compare.ignore]
+    ; b : int
+    ; c : int
+    }
+  [@@deriving_inline compare]
+
+  let _ = fun (_ : t)  -> ()
+  let compare : t -> t -> int =
+    fun a__329_  ->
+    fun b__330_  ->
+      if Ppx_compare_lib.phys_equal a__329_ b__330_
+      then 0
+      else
+        (match compare_int a__329_.b b__330_.b with
+         | 0 -> compare_int a__329_.c b__330_.c
+         | n -> n)
+
+  let _ = compare
+
+  [@@@deriving.end]
+
+  let equal = [%compare.equal: t]
+
+end

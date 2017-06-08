@@ -9,6 +9,16 @@ representations. The scaffolded functions are usually much faster than ocaml's
 you to override them for a specific type and more safety by making sure that you only
 compare comparable values.
 
+Syntax
+-------
+
+Type definitions: `[@@deriving compare]`
+Expressions: `[%compare: TYPE]` and `[%compare.equal: TYPE]`
+Record fields: `[@compare.ignore]`
+
+Basic usage
+-----
+
 We use `ppx_deriving`/`ppx_type_conv`, so type definitions are annotated this way:
 
 ```ocaml
@@ -64,3 +74,16 @@ let gt x y = [%compare: float * int * [`A | `B | `C] ] x y
 
 You can also check for equality using `[%compare.equal: ..]`, which produces a function
 that returns `true` precisely when `[%compare: ..]` returns `0`.
+
+Special support for record fields
+----------------------
+
+The comparison ignores record fields which are annotated with `[@compare.ignore]`.
+
+```ocaml
+    type t =
+      { a : float  [@compare.ignore]
+      ; b : string
+      }
+    [@@deriving compare]
+```
