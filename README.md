@@ -72,6 +72,14 @@ such a comparison function using the `[%compare: ..]` extension point:
 let gt x y = [%compare: float * int * [`A | `B | `C] ] x y
 ```
 
+You can use the type `_`, in which case the corresponding values will be
+ignored (i.e. compared using `fun _ _ -> 0`). For instance:
+
+```ocaml
+assert ([%compare: _ list] [ true ] [ false ] = 0);
+assert ([%compare: _ list] [] [ false ] <> 0);
+```
+
 You can also check for equality using `[%compare.equal: ..]`, which produces a function
 that returns `true` precisely when `[%compare: ..]` returns `0`.
 

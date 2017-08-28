@@ -225,6 +225,7 @@ and compare_of_ty ty value1 value2 =
       "ppx_compare: Functions can not be compared."
   | Ptyp_variant (row_fields, Closed, None) ->
     compare_variant loc row_fields value1 value2
+  | Ptyp_any -> [%expr let _ = [%e value1] and _ = [%e value2] in 0]
   | _ ->
     Location.raise_errorf ~loc "ppx_compare: unknown type"
 

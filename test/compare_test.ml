@@ -216,3 +216,16 @@ module No_comparing1 = struct
   let equal = [%compare.equal: t]
 
 end
+
+module No_comparing3 = struct
+  type t = int * int * int
+
+  let compare = [%compare: _ * int * int]
+
+  let _ = compare
+
+  let equal = [%compare.equal: t]
+
+  let%test _ = equal (0, 1, 2) (1, 1, 2)
+  let%test _ = not (equal (0, 1, 2) (0, 0, 2))
+end
