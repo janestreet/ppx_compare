@@ -37,8 +37,9 @@ Pervasives.compare (provided their type parameters also do for the polymorphic o
 
 Records fields are compared in the order they are defined (left to right); tuples fields
 are compared left to right. When we compare two branches of a sum whichever ones comes
-first in the definition is considered lowest. Polymorphic variants use the same ordering
-as the ocaml runtime.
+first in the definition is considered lowest. Variants compare in the order they are 
+listed (increasing top-to-bottom). Polymorphic variants use the same ordering as the
+ocaml runtime.
 
 
 Calling `compare` for type `t`s

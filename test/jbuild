@@ -1,5 +1,6 @@
 (library
  ((name comparelib_test)
+  (flags (:standard -safe-string))
   (preprocess (pps (ppx_type_conv ppx_compare ppx_inline_test ppx_driver.runner)))))
 
 (alias ((name DEFAULT)

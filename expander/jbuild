@@ -1,6 +1,7 @@
 (library
  ((name ppx_compare_expander)
   (public_name ppx_compare.expander)
+  (flags (:standard -safe-string))
   (libraries (ppx_core ppx_driver))
   (ppx_runtime_libraries (ppx_compare.runtime-lib))
   (preprocess (pps (ppx_metaquot ppx_driver.runner)))))
