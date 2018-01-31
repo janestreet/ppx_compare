@@ -32,7 +32,7 @@ Compare is not DWIM (do what I mean): it will scaffold a fast well behaved compa
 (reflexive, transitive, symmetric...) function however it does not try to follow any
 "natural ordering". For instance arrays of characters are not sorted lexicographically.
 
-Base types (options,int,array,lists,char,floats...) have the same comparison order than
+Base types (options,int,array,lists,char,floats...) have the same comparison order as
 Pervasives.compare (provided their type parameters also do for the polymorphic ones).
 
 Records fields are compared in the order they are defined (left to right); tuples fields
