@@ -280,7 +280,7 @@ let scheme_of_td td =
   match td.ptype_params with
   | [] -> type_
   | l ->
-    let vars = List.map l ~f:(fun x -> (get_type_param_name x).txt) in
+    let vars = List.map l ~f:get_type_param_name in
     ptyp_poly ~loc vars type_
 
 let compare_of_td td ~rec_flag =
