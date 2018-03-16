@@ -1,12 +1,11 @@
-open Ppx_type_conv.Std
-open Ppx_core
+open Ppxlib
 
 let str_type_decl =
-  Type_conv.Generator.make_noarg Ppx_compare_expander.str_type_decl
+  Deriving.Generator.make_noarg Ppx_compare_expander.str_type_decl
     ~attributes:Ppx_compare_expander.str_attributes
 
 let sig_type_decl =
-  Type_conv.Generator.make_noarg Ppx_compare_expander.sig_type_decl
+  Deriving.Generator.make_noarg Ppx_compare_expander.sig_type_decl
 
 let replace_underscores_by_variables =
   let map = object
@@ -20,14 +19,14 @@ let replace_underscores_by_variables =
 let name = "compare"
 
 let compare =
-  Type_conv.add name
+  Deriving.add name
     ~str_type_decl
     ~sig_type_decl
     ~extension:(fun ~loc:_ ~path:_ ty -> Ppx_compare_expander.compare_core_type ty)
 ;;
 
 let () =
-  Ppx_driver.register_transformation name
+  Driver.register_transformation name
     ~rules:[ Context_free.Rule.extension
                (Extension.declare name
                   Core_type Ast_pattern.(ptyp __)
@@ -38,13 +37,13 @@ let () =
 
 let () =
   let name = "@compare.equal" in
-  Type_conv.add name
+  Deriving.add name
     ~str_type_decl
     ~sig_type_decl
     ~extension:(fun ~loc:_ ~path:_ ty -> Ppx_compare_expander.equal_core_type ty)
-  |> Type_conv.ignore;
+  |> Deriving.ignore;
 
-  Ppx_driver.register_transformation name
+  Driver.register_transformation name
     ~rules:[ Context_free.Rule.extension
                (Extension.declare name
                   Core_type Ast_pattern.(ptyp __)
@@ -60,10 +59,10 @@ let add_warning e msg =
 
 let () =
   let deprecated_name = "equal" in
-  Type_conv.add deprecated_name
+  Deriving.add deprecated_name
     ~extension:(fun ~loc:_ ~path:_ ty ->
       add_warning
         (Ppx_compare_expander.equal_core_type ty)
         "equal is deprecated, use compare.equal instead")
-  |> Type_conv.ignore
+  |> Deriving.ignore
 ;;

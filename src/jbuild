@@ -3,9 +3,7 @@
   (public_name ppx_compare)
   (kind ppx_deriver)
   (flags (:standard -safe-string))
-  (libraries (ppx_core
-              ppx_driver
-              ppx_type_conv
+  (libraries (ppxlib
               ppx_compare_expander
               ))
   (preprocess no_preprocessing)))

@@ -2,9 +2,9 @@
  ((name ppx_compare_expander)
   (public_name ppx_compare.expander)
   (flags (:standard -safe-string))
-  (libraries (ppx_core ppx_driver))
+  (libraries (base ppxlib))
   (ppx_runtime_libraries (ppx_compare.runtime-lib))
-  (preprocess (pps (ppx_metaquot ppx_driver.runner)))))
+  (preprocess (pps (ppxlib.metaquot ppxlib.runner)))))
 
 
 (jbuild_version 1)

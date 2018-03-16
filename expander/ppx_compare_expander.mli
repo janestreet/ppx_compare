@@ -1,4 +1,4 @@
-open Ppx_core
+open Ppxlib
 
 (** [compare_type ty] is [ty -> ty -> int] *)
 val compare_type : loc:Location.t -> core_type -> core_type

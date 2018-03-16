@@ -8,7 +8,8 @@
    unnecessary due to the value restriction).
 *)
 
-open Ppx_core
+open Base
+open Ppxlib
 open Ast_builder.Default
 
 module Attrs = struct

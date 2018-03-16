@@ -1,3 +1,3 @@
-open Ppx_type_conv.Std
+open Ppxlib
 
-val compare : Type_conv.t
+val compare : Deriving.t
