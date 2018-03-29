@@ -2,7 +2,6 @@
  ((name ppx_compare)
   (public_name ppx_compare)
   (kind ppx_deriver)
-  (flags (:standard -safe-string))
   (libraries (ppxlib
               ppx_compare_expander
               ))
