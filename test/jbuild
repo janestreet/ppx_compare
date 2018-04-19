@@ -1,6 +1,6 @@
 (library
  ((name comparelib_test)
-  (preprocess (pps (ppx_type_conv ppx_compare ppx_inline_test ppxlib.runner)))))
+  (preprocess (pps (ppxlib ppx_compare ppx_inline_test ppxlib.runner)))))
 
 (alias ((name DEFAULT)
         (deps (compare_test.ml.pp))))

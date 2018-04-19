@@ -198,19 +198,19 @@ module No_comparing1 = struct
     }
   [@@deriving_inline compare]
 
-  
+
 let _ = fun (_ : t)  -> ()
 
-  
-let compare : t -> t -> int =
-  fun a__329_  ->
+
+let compare =
+  ((fun a__329_  ->
     fun b__330_  ->
       if Ppx_compare_lib.phys_equal a__329_ b__330_
       then 0
       else
         (match compare_int a__329_.b b__330_.b with
          | 0 -> compare_int a__329_.c b__330_.c
-         | n -> n)
+         | n -> n)) : t -> t -> int)
 
 let _ = compare
 [@@@deriving.end]

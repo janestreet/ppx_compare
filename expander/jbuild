@@ -5,5 +5,4 @@
   (ppx_runtime_libraries (ppx_compare.runtime-lib))
   (preprocess (pps (ppxlib.metaquot ppxlib.runner)))))
 
-
 (jbuild_version 1)
