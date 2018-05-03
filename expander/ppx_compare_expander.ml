@@ -83,12 +83,12 @@ and compare_of_tuple loc tys value1 value2 =
 
 and compare_variant loc row_fields value1 value2 =
   let map = function
-    | Rtag (cnstr, _attrs, true, _) | Rtag (cnstr, _attrs, _, []) ->
+    | Rtag ({ txt = cnstr; _ }, _attrs, true, _) | Rtag ({ txt = cnstr; _ }, _attrs, _, []) ->
       case ~guard:None
         ~lhs:(ppat_tuple ~loc
                 [ppat_variant ~loc cnstr None; ppat_variant ~loc cnstr None])
         ~rhs:(eint ~loc 0)
-    | Rtag (cnstr, _attrs, false, tp :: _) ->
+    | Rtag ({ txt = cnstr; _ }, _attrs, false, tp :: _) ->
       let v1 = gen_symbol ~prefix:"_left" ()
       and v2 = gen_symbol ~prefix:"_right" () in
       let body = compare_of_ty tp (evar ~loc v1) (evar ~loc v2) in
