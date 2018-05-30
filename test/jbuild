@@ -5,6 +5,13 @@
 (alias ((name DEFAULT)
         (deps (compare_test.ml.pp))))
 
+(alias
+ ((name runtest)
+  (deps (comparelib_test__Check_optims.o))
+  ;; to ensure that the compiler actually optimizes comparisons
+  ;; (i.e. there should be no calls to caml_compare from this module)
+  (action (bash "objdump -t comparelib_test__Check_optims.o | { ! grep -q caml_compare; }"))))
+
 
 
 (jbuild_version 1)

@@ -1,3 +1,7 @@
+## git version
+
+- Optimized comparison for sum types when all constructors are constant.
+
 ## v0.11
 
 Depend on ppxlib instead of (now deprecated) ppx\_core, ppx\_driver,

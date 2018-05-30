@@ -136,6 +136,7 @@ and branches_of_sum cds =
        let rightmost = i = rightmost_index in
        let loc = cd.pcd_loc in
        if Option.is_some cd.pcd_res then
+         (* If we get GADTs support, fix the constant sum type optimization for them *)
          Location.raise_errorf ~loc "GADTs are not supported by comparelib";
        match cd.pcd_args with
        | Pcstr_record lds ->
@@ -211,9 +212,22 @@ and branches_of_sum cds =
              ]))
 
 and compare_sum loc cds value1 value2 =
-  let mcs = branches_of_sum cds in
-  let e = pexp_match ~loc (pexp_tuple ~loc [value1; value2]) mcs in
-  phys_equal_first value1 value2 e
+  let is_sum_type_with_all_constant_constructors =
+    List.for_all cds ~f:(fun cd ->
+      (Option.is_none cd.pcd_res) && (* we could support GADTs, but the general case
+                                        doesn't, so let's hold off *)
+      (match cd.pcd_args with
+       | Pcstr_tuple l  -> List.is_empty l
+       | Pcstr_record l -> List.is_empty l))
+  in
+  if is_sum_type_with_all_constant_constructors then begin
+    (* the compiler will optimize the polymorphic comparison to an integer one *)
+    [%expr Ppx_compare_lib.polymorphic_compare [%e value1] [%e value2]]
+  end else begin
+    let mcs = branches_of_sum cds in
+    let e = pexp_match ~loc (pexp_tuple ~loc [value1; value2]) mcs in
+    phys_equal_first value1 value2 e
+  end
 
 and compare_of_ty ty value1 value2 =
   let loc = ty.ptyp_loc in

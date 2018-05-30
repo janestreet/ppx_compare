@@ -199,21 +199,21 @@ module No_comparing1 = struct
   [@@deriving_inline compare]
 
 
-let _ = fun (_ : t)  -> ()
+  let _ = fun (_ : t)  -> ()
 
 
-let compare =
-  ((fun a__329_  ->
-    fun b__330_  ->
-      if Ppx_compare_lib.phys_equal a__329_ b__330_
-      then 0
-      else
-        (match compare_int a__329_.b b__330_.b with
-         | 0 -> compare_int a__329_.c b__330_.c
-         | n -> n)) : t -> t -> int)
+  let compare =
+    ((fun a__329_  ->
+       fun b__330_  ->
+         if Ppx_compare_lib.phys_equal a__329_ b__330_
+         then 0
+         else
+           (match compare_int a__329_.b b__330_.b with
+            | 0 -> compare_int a__329_.c b__330_.c
+            | n -> n)) : t -> t -> int)
 
-let _ = compare
-[@@@deriving.end]
+  let _ = compare
+  [@@@deriving.end]
 
   let equal = [%compare.equal: t]
 
@@ -230,4 +230,17 @@ module No_comparing3 = struct
 
   let%test _ = equal (0, 1, 2) (1, 1, 2)
   let%test _ = not (equal (0, 1, 2) (0, 0, 2))
+end
+
+module Enum_optim = struct
+
+  type t = A | B | C
+  [@@deriving_inline compare]
+
+  let _ = fun (_ : t) -> ()
+
+  let compare : t -> t -> int = Ppx_compare_lib.polymorphic_compare
+  let _ = compare
+  [@@@deriving.end]
+
 end
