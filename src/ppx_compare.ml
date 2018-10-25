@@ -1,11 +1,21 @@
+open Base
 open Ppxlib
+open Ppx_compare_expander
 
-let str_type_decl =
-  Deriving.Generator.make_noarg Ppx_compare_expander.str_type_decl
-    ~attributes:Ppx_compare_expander.str_attributes
+let add_deriver name (module E : Ppx_compare_expander.S) =
+  let str_type_decl =
+    Deriving.Generator.make_noarg E.str_type_decl
+      ~attributes:E.str_attributes
+  in
+  let sig_type_decl =
+    Deriving.Generator.make_noarg E.sig_type_decl
+  in
+  Deriving.add name
+    ~str_type_decl
+    ~sig_type_decl
 
-let sig_type_decl =
-  Deriving.Generator.make_noarg Ppx_compare_expander.sig_type_decl
+let compare = add_deriver "compare" (module Compare)
+let equal = add_deriver "equal" (module Equal)
 
 let replace_underscores_by_variables =
   let map = object
@@ -16,53 +26,23 @@ let replace_underscores_by_variables =
   end in
   map#core_type
 
-let name = "compare"
-
-let compare =
-  Deriving.add name
-    ~str_type_decl
-    ~sig_type_decl
-    ~extension:(fun ~loc:_ ~path:_ ty -> Ppx_compare_expander.compare_core_type ty)
-;;
-
 let () =
-  Driver.register_transformation name
-    ~rules:[ Context_free.Rule.extension
-               (Extension.declare name
-                  Core_type Ast_pattern.(ptyp __)
-                  (fun ~loc ~path:_ ty ->
-                     Ppx_compare_expander.compare_type ~loc
-                       (replace_underscores_by_variables ty))) ]
-;;
-
-let () =
-  let name = "@compare.equal" in
-  Deriving.add name
-    ~str_type_decl
-    ~sig_type_decl
-    ~extension:(fun ~loc:_ ~path:_ ty -> Ppx_compare_expander.equal_core_type ty)
-  |> Deriving.ignore;
-
-  Driver.register_transformation name
-    ~rules:[ Context_free.Rule.extension
-               (Extension.declare name
-                  Core_type Ast_pattern.(ptyp __)
-                  (fun ~loc ~path:_ ty ->
-                     Ppx_compare_expander.equal_type ~loc
-                       (replace_underscores_by_variables ty))) ]
-;;
-
-let add_warning e msg =
-  let attr = attribute_of_warning e.pexp_loc msg in
-  { e with pexp_attributes = attr :: e.pexp_attributes }
-;;
-
-let () =
-  let deprecated_name = "equal" in
-  Deriving.add deprecated_name
-    ~extension:(fun ~loc:_ ~path:_ ty ->
-      add_warning
-        (Ppx_compare_expander.equal_core_type ty)
-        "equal is deprecated, use compare.equal instead")
-  |> Deriving.ignore
-;;
+  List.iter
+    [ "compare"        , Compare.type_ , Compare.core_type
+    ; "equal"          , Equal.type_   , Equal.core_type
+    ; "@compare.equal" , Equal.type_   , Compare.equal_core_type
+    ]
+    ~f:(fun (name, type_, core_type) ->
+      Driver.register_transformation (String.strip name ~drop:(Char.equal '@'))
+        ~rules:[ Context_free.Rule.extension
+                   (Extension.declare name
+                      Core_type Ast_pattern.(ptyp __)
+                      (fun ~loc ~path:_ ty ->
+                         type_ ~loc
+                           (replace_underscores_by_variables ty)))
+               ; Context_free.Rule.extension
+                   (Extension.declare name
+                      Expression Ast_pattern.(ptyp __)
+                      (fun ~loc:_ ~path:_ ty ->
+                         core_type ty))
+               ])

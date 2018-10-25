@@ -3,14 +3,15 @@
   (preprocess (pps (ppxlib ppx_compare ppx_inline_test ppxlib.runner)))))
 
 (alias ((name DEFAULT)
-        (deps (compare_test.ml.pp))))
+        (deps (test.ml.pp))))
 
 (alias
  ((name runtest)
   (deps (comparelib_test__Check_optims.o))
   ;; to ensure that the compiler actually optimizes comparisons
   ;; (i.e. there should be no calls to caml_compare from this module)
-  (action (bash "objdump -t comparelib_test__Check_optims.o | { ! grep -q caml_compare; }"))))
+  (action (bash "objdump -t comparelib_test__Check_optims.o | \
+           { ! grep -Eq 'caml_(compare|equal)'; }"))))
 
 
 
