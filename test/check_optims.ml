@@ -21,9 +21,15 @@ module Equal = struct
   let optim_float     : float     equal = polymorphic_equal
   let optim_int       : int       equal = polymorphic_equal
   let optim_int32     : int32     equal = polymorphic_equal
-  let optim_int64     : int64     equal = polymorphic_equal
   let optim_nativeint : nativeint equal = polymorphic_equal
   let optim_string    : string    equal = polymorphic_equal
   let optim_unit      : unit      equal = polymorphic_equal
   let optim_enum      : enum      equal = polymorphic_equal
+
+  let optim_int64 =
+    if Sys.word_size = 32 then
+      (* On 32bits, polymmorphic comparison of int64 values is not specialized *)
+      (fun _ _ -> false)
+    else
+      (polymorphic_equal : int64 equal)
 end
