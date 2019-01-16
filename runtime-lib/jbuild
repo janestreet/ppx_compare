@@ -1,8 +1,0 @@
-(library
- ((name        ppx_compare_lib)
-  (public_name ppx_compare.runtime-lib)
-  (libraries (base))
-  (preprocess no_preprocessing)))
-
-
-(jbuild_version 1)

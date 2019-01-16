@@ -130,13 +130,13 @@ module Variance = struct
 end
 
 module Test = struct
-  let (=) : int -> int -> bool = Pervasives.(=)
+  let (=) : int -> int -> bool = Base.Poly.(=)
   (* checking that for the types mentioned in the readme, we compare structurally  *)
-  let%test _ = [%compare: unit option] None (Some ()) = Pervasives.compare None (Some ())
-  let%test _ = [%compare: unit list] [] [()] = Pervasives.compare [] [()]
-  let%test _ = [%compare: int array] [|0; 1|] [|1|] = Pervasives.compare [|0; 1|] [|1|]
+  let%test _ = [%compare: unit option] None (Some ()) = Base.Poly.compare None (Some ())
+  let%test _ = [%compare: unit list] [] [()] = Base.Poly.compare [] [()]
+  let%test _ = [%compare: int array] [|0; 1|] [|1|] = Base.Poly.compare [|0; 1|] [|1|]
   let%test _ =
-    Pervasives.(=)
+    Base.Poly.(=)
       (List.sort [%compare: int option] [Some 3; None; Some 2; Some 1])
       [None; Some 1; Some 2; Some 3]
 end
@@ -263,12 +263,12 @@ module Lazy_behavior = struct
   type b = int * a [@@deriving compare, equal]
 
   let%test _ = not (equal_b (0, ()) (1, ()))
-  let%test _ = Pervasives.(<) (compare_b (0, ()) (1, ())) 0
+  let%test _ = Base.Poly.(<) (compare_b (0, ()) (1, ())) 0
 end
 
 module Not_ieee_compliant = struct
   type t = float [@@deriving compare, equal]
 
   let%test _ = [%equal: t] nan nan
-  let%test _ = Pervasives.(=) ([%compare: t] nan nan) 0
+  let%test _ = Base.Poly.(=) ([%compare: t] nan nan) 0
 end
