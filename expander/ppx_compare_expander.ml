@@ -414,6 +414,7 @@ module Make(Params : Params) = struct
     else value_binding ~loc ~pat:bnd ~expr:(pexp_constraint ~loc body (scheme_of_td td))
 
   let str_type_decl ~loc ~path:_ (rec_flag, tds) =
+    let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag =
       (object
         inherit type_is_recursive rec_flag tds as super
@@ -428,6 +429,7 @@ module Make(Params : Params) = struct
     [ pstr_value ~loc rec_flag bindings ]
 
   let sig_type_decl ~loc:_ ~path:_ (_rec_flag, tds) =
+    let tds = List.map tds ~f:name_type_params_in_td in
     List.map tds ~f:(fun td ->
       let compare_of = combinator_type_of_type_declaration td ~f:type_ in
       let name = function_name td.ptype_name.txt in

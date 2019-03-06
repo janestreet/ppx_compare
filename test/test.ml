@@ -272,3 +272,28 @@ module Not_ieee_compliant = struct
   let%test _ = [%equal: t] nan nan
   let%test _ = Base.Poly.(=) ([%compare: t] nan nan) 0
 end
+
+module Wildcard : sig
+  type _ transparent = int [@@deriving compare, equal]
+
+  type _ opaque [@@deriving compare, equal]
+end = struct
+  type _ transparent = int [@@deriving compare, equal]
+
+  let%test _ = [%equal: string transparent] 1 1
+  let%test _ = not ([%equal: string transparent] 1 2)
+
+  let%test _ = Base.Poly.(<) ([%compare: string transparent] 1 2) 0
+  let%test _ = Base.Poly.(=) ([%compare: string transparent] 1 1) 0
+  let%test _ = Base.Poly.(>) ([%compare: string transparent] 2 1) 0
+
+  type 'a opaque = 'a option [@@deriving compare, equal]
+
+  let%test _ = [%equal: int opaque] (Some 1) (Some 1)
+  let%test _ = not ([%equal: int opaque] None (Some 1))
+  let%test _ = not ([%equal: int opaque] (Some 1) (Some 2))
+
+  let%test _ = Base.Poly.(<) ([%compare: int opaque] None (Some 1)) 0
+  let%test _ = Base.Poly.(=) ([%compare: int opaque] (Some 1) (Some 1)) 0
+  let%test _ = Base.Poly.(>) ([%compare: int opaque] (Some 2) (Some 1)) 0
+end
