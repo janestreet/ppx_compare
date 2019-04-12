@@ -90,7 +90,7 @@ end
 module M28 = struct
   (* making sure that nobody is reversing the type parameters *)
   type ('a, 'b) t = ('a * 'b) list [@@deriving compare, equal]
-  let _ = [%compare: (int,float) t] [(1,nan)]
+  let (_ : (int, float) t -> int) = [%compare: (int,float) t] [(1,nan)]
 end
 
 module M29 = struct
