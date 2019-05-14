@@ -200,26 +200,27 @@ module No_comparing1 = struct
 
   let _ = fun (_ : t)  -> ()
 
-  let compare : t -> t -> int =
-    fun a__589_ ->
-    fun b__590_ ->
-      if Ppx_compare_lib.phys_equal a__589_ b__590_
-      then 0
-      else
-        (match compare_int a__589_.b b__590_.b with
-         | 0 -> compare_int a__589_.c b__590_.c
-         | n -> n)
 
+  let compare =
+    (fun a__589_ ->
+       fun b__590_ ->
+         if Ppx_compare_lib.phys_equal a__589_ b__590_
+         then 0
+         else
+           (match compare_int a__589_.b b__590_.b with
+            | 0 -> compare_int a__589_.c b__590_.c
+            | n -> n) : t -> t -> int)
   let _ = compare
 
-  let equal : t -> t -> bool =
-    fun a__591_ ->
-    fun b__592_ ->
-      if Ppx_compare_lib.phys_equal a__591_ b__592_
-      then true
-      else
-        Ppx_compare_lib.(&&) (equal_int a__591_.b b__592_.b)
-          (equal_int a__591_.c b__592_.c)
+
+  let equal =
+    (fun a__591_ ->
+       fun b__592_ ->
+         if Ppx_compare_lib.phys_equal a__591_ b__592_
+         then true
+         else
+           Ppx_compare_lib.(&&) (equal_int a__591_.b b__592_.b)
+             (equal_int a__591_.c b__592_.c) : t -> t -> bool)
   let _ = equal
   [@@@deriving.end]
 
@@ -246,10 +247,12 @@ module Enum_optim = struct
 
   let _ = fun (_ : t) -> ()
 
-  let compare : t -> t -> int = Ppx_compare_lib.polymorphic_compare
+
+  let compare = (Ppx_compare_lib.polymorphic_compare : t -> t -> int)
   let _ = compare
 
-  let equal : t -> t -> bool = Ppx_compare_lib.polymorphic_equal
+
+  let equal = (Ppx_compare_lib.polymorphic_equal : t -> t -> bool)
   let _ = equal
   [@@@deriving.end]
 end
