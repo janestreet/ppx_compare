@@ -16,7 +16,7 @@ Syntax
 
 Type definitions: `[@@deriving compare, equal]`
 Expressions: `[%compare: TYPE]`, `[%equal: TYPE]` and `[%compare.equal: TYPE]`
-Record fields: `[@compare.ignore]`, `[@equal.ignore]`
+Types, record fields: `[@compare.ignore]`, `[@equal.ignore]`
 
 Basic usage
 -----------
@@ -103,25 +103,44 @@ produces a function that returns `true` precisely when `[%compare:
 equal]` was added long after the project started, which means that
 many types out there only support `[@deriving compare]`.
 
-Special support for record fields
----------------------------------
+Ignoring part of types
+----------------------
 
-The comparison ignores record fields which are annotated with `[@compare.ignore]`.
+The comparison ignores any part of the type declaration that is under
+a `[@compare.ignore]` annotation:
+
+```ocaml
+    type t = (float [@compare.ignore]) * string
+    [@@deriving compare]
+```
+
+The same applies for `[@@deriving equal]` by using
+`[@equal.ignore]`. In order to ignore part of a type for both
+comparison and equality, you can simply use `[@ignore]`. However, be
+aware that the general `[@ignore]` attribute will apply to any deriver
+that recognize it, not just `compare` and `equal`.
+
+Note that if you use both the `compare` and `equal` derivers, you need
+to use either both `[@compare.ignore]` and `[@equal.ignore]` or
+`[@ignore]`. However, you cannot use only one of them.
+
+For convenience, you can also ignore record fields instead of the
+type of record field. In other words,
 
 ```ocaml
     type t =
-      { a : float  [@compare.ignore]
+      { a : (float [@compare.ignore])
       ; b : string
       }
     [@@deriving compare]
 ```
 
-The same applies for `[@@deriving equal]` by using
-`[@equal.ignore]`. In order to ignore a field for both comparison and
-equality, you can simply use `[@ignore]`. However, be aware that the
-general `[@ignore]` attribute will apply to any deriver that recognize
-it, not just `compare` and `equal`.
+can be abbreviated:
 
-Note that if you use both the `compare` and `equal` derivers, you need
-to use either both `[@compare.ignore]` and `[@equal.ignore]` or
-`[@ignore]`. However, you cannot use only one of them.
+```ocaml
+    type t =
+      { a : float [@compare.ignore]
+      ; b : string
+      }
+    [@@deriving compare]
+```

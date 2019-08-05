@@ -1,7 +1,8 @@
 open Ppxlib
 
 module type Attrs = sig
-  val ignore : (label_declaration, unit) Attribute.t
+  val ignore_label_declaration : (label_declaration, unit) Attribute.t
+  val ignore_core_type : (core_type, unit) Attribute.t
 end
 
 module type S = sig

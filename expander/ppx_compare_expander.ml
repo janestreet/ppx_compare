@@ -33,9 +33,14 @@ module type Params = sig
 end
 
 module Make_attrs(Name : sig val name : string end) : Attrs = struct
-  let ignore =
+  let ignore_label_declaration =
     Attribute.declare (Name.name ^ ".ignore")
       Attribute.Context.label_declaration
+      Ast_pattern.(pstr nil)
+      ()
+  let ignore_core_type =
+    Attribute.declare (Name.name ^ ".ignore")
+      Attribute.Context.core_type
       Ast_pattern.(pstr nil)
       ()
 end
@@ -95,15 +100,12 @@ module Make(Params : Params) = struct
   module Attrs = Attrs
 
   let str_attributes = [
-    Attribute.T Attrs.ignore
+    Attribute.T Attrs.ignore_label_declaration;
+    Attribute.T Attrs.ignore_core_type;
   ]
 
-  let is_ignored ld =
-    let loc = ld.pld_loc in
-    match kind,
-          Attribute.get Compare_params.Attrs.ignore ld,
-          Attribute.get Equal_params.Attrs.ignore ld
-    with
+  let is_ignored_gen ~loc ~compare_attr ~equal_attr ast =
+    match kind, Attribute.get compare_attr ast, Attribute.get equal_attr ast with
     | _, Some (), Some ()
     | Compare, Some (), None
     | Equal, None, Some () -> true
@@ -112,6 +114,20 @@ module Make(Params : Params) = struct
       Location.raise_errorf ~loc "Cannot use [@@equal.ignore] with [@@@@deriving compare]."
     | Equal, Some (), None ->
       Location.raise_errorf ~loc "Cannot use [@@compare.ignore] with [@@@@deriving equal]"
+
+  let core_type_is_ignored ty =
+    is_ignored_gen
+      ~loc:ty.ptyp_loc
+      ~compare_attr:Compare_params.Attrs.ignore_core_type
+      ~equal_attr:Equal_params.Attrs.ignore_core_type
+      ty
+
+  let label_is_ignored ld =
+    is_ignored_gen
+      ~loc:ld.pld_loc
+      ~compare_attr:Compare_params.Attrs.ignore_label_declaration
+      ~equal_attr:Equal_params.Attrs.ignore_label_declaration
+      ld
 
   let with_tuple loc ~value ~tys f =
     (* generate
@@ -147,6 +163,9 @@ module Make(Params : Params) = struct
   let function_name = function
     | "t" -> name
     | s -> name ^ "_" ^ s
+
+  let compare_ignore ~loc value1 value2 =
+    [%expr let _ = [%e value1] and _ = [%e value2] in [%e const ~loc Equal]]
 
   let rec compare_applied ~constructor ~args value1 value2 =
     let args =
@@ -313,18 +332,21 @@ module Make(Params : Params) = struct
 
   and compare_of_ty ty value1 value2 =
     let loc = ty.ptyp_loc in
-    match ty.ptyp_desc with
-    | Ptyp_constr (constructor, args) -> compare_applied ~constructor ~args value1 value2
-    | Ptyp_tuple tys -> compare_of_tuple loc tys value1 value2
-    | Ptyp_var name -> eapply ~loc (evar ~loc (tp_name name)) [value1; value2]
-    | Ptyp_arrow _ ->
-      Location.raise_errorf ~loc
-        "ppx_compare: Functions can not be compared."
-    | Ptyp_variant (row_fields, Closed, None) ->
-      compare_variant loc row_fields value1 value2
-    | Ptyp_any -> [%expr let _ = [%e value1] and _ = [%e value2] in [%e const ~loc Equal]]
-    | _ ->
-      Location.raise_errorf ~loc "ppx_compare: unknown type"
+    if core_type_is_ignored ty
+    then compare_ignore ~loc value1 value2
+    else
+      match ty.ptyp_desc with
+      | Ptyp_constr (constructor, args) -> compare_applied ~constructor ~args value1 value2
+      | Ptyp_tuple tys -> compare_of_tuple loc tys value1 value2
+      | Ptyp_var name -> eapply ~loc (evar ~loc (tp_name name)) [value1; value2]
+      | Ptyp_arrow _ ->
+        Location.raise_errorf ~loc
+          "ppx_compare: Functions can not be compared."
+      | Ptyp_variant (row_fields, Closed, None) ->
+        compare_variant loc row_fields value1 value2
+      | Ptyp_any -> compare_ignore ~loc value1 value2
+      | _ ->
+        Location.raise_errorf ~loc "ppx_compare: unknown type"
 
   and compare_of_ty_fun ~type_constraint ty =
     let loc = ty.ptyp_loc in
@@ -348,7 +370,7 @@ module Make(Params : Params) = struct
     in
     assert (is_evar value1);
     assert (is_evar value2);
-    List.filter lds ~f:(fun ld -> not (is_ignored ld))
+    List.filter lds ~f:(fun ld -> not (label_is_ignored ld))
     |> List.map ~f:(fun ld ->
       let loc = ld.pld_loc in
       let label = Located.map lident ld.pld_name in
@@ -420,8 +442,12 @@ module Make(Params : Params) = struct
         inherit type_is_recursive rec_flag tds as super
 
         method! label_declaration ld =
-          if not (is_ignored ld) then
+          if not (label_is_ignored ld) then
             super#label_declaration ld
+
+        method! core_type ty =
+          if not (core_type_is_ignored ty) then
+            super#core_type ty
 
       end)#go ()
     in
