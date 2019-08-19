@@ -183,13 +183,14 @@ module Make(Params : Params) = struct
         chain_if ~loc exprs))
 
   and compare_variant loc row_fields value1 value2 =
-    let map = function
-      | Rtag ({ txt = cnstr; _ }, _attrs, true, _) | Rtag ({ txt = cnstr; _ }, _attrs, _, []) ->
+    let map = fun row ->
+      match row.prf_desc with
+      | Rtag ({ txt = cnstr; _ }, true, _) | Rtag ({ txt = cnstr; _ }, _, []) ->
         case ~guard:None
           ~lhs:(ppat_tuple ~loc
                   [ppat_variant ~loc cnstr None; ppat_variant ~loc cnstr None])
           ~rhs:(const ~loc Equal)
-      | Rtag ({ txt = cnstr; _ }, _attrs, false, tp :: _) ->
+      | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
         let v1 = gen_symbol ~prefix:"_left" ()
         and v2 = gen_symbol ~prefix:"_right" () in
         let body = compare_of_ty tp (evar ~loc v1) (evar ~loc v2) in
