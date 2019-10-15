@@ -6,7 +6,7 @@ type t =
   }
   [@@deriving equal]
 [%%expect{|
-Line _, characters 4-33:
+Line _, characters _-_:
 Error: Cannot use [@compare.ignore] with [@@deriving equal]
 |}]
 
@@ -17,7 +17,7 @@ type t =
   }
   [@@deriving compare, equal]
 [%%expect{|
-Line _, characters 4-31:
+Line _, characters _-_:
 Error: Cannot use [@equal.ignore] with [@@deriving compare].
 |}]
 
