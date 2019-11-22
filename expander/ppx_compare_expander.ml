@@ -165,7 +165,7 @@ module Make(Params : Params) = struct
     | s -> name ^ "_" ^ s
 
   let compare_ignore ~loc value1 value2 =
-    [%expr let _ = [%e value1] and _ = [%e value2] in [%e const ~loc Equal]]
+    [%expr let _ : _ = [%e value1] and _ : _ = [%e value2] in [%e const ~loc Equal]]
 
   let rec compare_applied ~constructor ~args value1 value2 =
     let args =
