@@ -15,6 +15,29 @@ let ( min ) = `Should_refer_to_runtime_lib
 let ( equal ) = `Should_refer_to_runtime_lib
 let ( compare ) = `Should_refer_to_runtime_lib
 
+module type M1_sig = sig
+  type t [@@deriving_inline compare, equal]
+
+  include
+    sig
+      [@@@ocaml.warning "-32"]
+      include Ppx_compare_lib.Comparable.S with type  t :=  t
+      include Ppx_compare_lib.Equal.S with type  t :=  t
+    end[@@ocaml.doc "@inline"]
+  [@@@end]
+end
+
+module type M1_sig_wrong_name = sig
+  type t1 [@@deriving_inline compare, equal]
+  include
+    sig
+      [@@@ocaml.warning "-32"]
+      val compare_t1 : t1 -> t1 -> int
+      val equal_t1 : t1 -> t1 -> bool
+    end[@@ocaml.doc "@inline"]
+  [@@@end]
+end
+
 module M1 = struct type t = unit [@@deriving compare, equal] end
 
 module M2 = struct type t = int [@@deriving compare, equal] end
@@ -75,6 +98,18 @@ module M24 = struct type t = int * string * [`Foo | `Bar ] [@@deriving compare, 
 
 module M25 = struct type t = String.t [@@deriving compare, equal] end
 
+module type M26_sig = sig
+  type 'a t [@@deriving_inline compare, equal]
+
+  include
+    sig
+      [@@@ocaml.warning "-32"]
+      include Ppx_compare_lib.Comparable.S1 with type 'a t :=  'a t
+      include Ppx_compare_lib.Equal.S1 with type 'a t :=  'a t
+    end[@@ocaml.doc "@inline"]
+  [@@@end]
+end
+
 module M26 = struct type 'a t = 'a array [@@deriving compare, equal] end
 
 module MyList = struct type 'a t = Nil | Node of 'a * 'a t [@@deriving compare, equal] end
@@ -111,6 +146,39 @@ module M30 = struct
   [@@deriving compare, equal]
 end
 
+module type Polyrec_sig = sig
+  type ('a, 'b) t = T of ('a option, 'b) t [@@deriving_inline compare, equal]
+
+  include
+    sig
+      [@@@ocaml.warning "-32"]
+      include Ppx_compare_lib.Comparable.S2 with type ('a,'b) t :=  ('a, 'b) t
+      include Ppx_compare_lib.Equal.S2 with type ('a,'b) t :=  ('a, 'b) t
+    end[@@ocaml.doc "@inline"]
+  [@@@end]
+
+  type ('a, 'b) t1 = T of ('a option, 'b) t2
+  and ('a, 'b) t2 = T1 of ('a list, 'b) t1 | T2 of ('a, 'b list) t2
+  [@@deriving_inline compare, equal]
+
+  include
+    sig
+      [@@@ocaml.warning "-32"]
+      val compare_t1 :
+        ('a -> 'a -> int) ->
+        ('b -> 'b -> int) -> ('a, 'b) t1 -> ('a, 'b) t1 -> int
+      val compare_t2 :
+        ('a -> 'a -> int) ->
+        ('b -> 'b -> int) -> ('a, 'b) t2 -> ('a, 'b) t2 -> int
+      val equal_t1 :
+        ('a -> 'a -> bool) ->
+        ('b -> 'b -> bool) -> ('a, 'b) t1 -> ('a, 'b) t1 -> bool
+      val equal_t2 :
+        ('a -> 'a -> bool) ->
+        ('b -> 'b -> bool) -> ('a, 'b) t2 -> ('a, 'b) t2 -> bool
+    end[@@ocaml.doc "@inline"]
+  [@@@end]
+end
 
 module Polyrec = struct
   type ('a, 'b) t = T of ('a option, 'b) t [@@deriving compare, equal]
