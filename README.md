@@ -36,6 +36,8 @@ Compare is not DWIM (do what I mean): it will scaffold a fast well behaved compa
 
 Base types (options,int,array,lists,char,floats...) have the same comparison order as
 Pervasives.compare (provided their type parameters also do for the polymorphic ones).
+Comparisons for these types must be brought in scope with `open Base`, `open Core`, or
+`open Ppx_compare_lib.Builtin`.
 
 Records fields are compared in the order they are defined (left to right); tuples fields
 are compared left to right. When we compare two branches of a sum whichever ones comes
@@ -96,7 +98,7 @@ The same applies to equality functions.
 
 You can also check for equality using `[%compare.equal: ..]`, which
 produces a function that returns `true` precisely when `[%compare:
-..]` returns `0`. `[%equal: ..]` is prefered over `[%compare.equal:
+..]` returns `0`. `[%equal: ..]` is preferred over `[%compare.equal:
 ..]` and in particular is expected to be slightly faster. However,
 `[%compare.equal: ..]` can come in handy for types that only have
 `[@@deriving compare]`. In particular, support for `[@@deriving
