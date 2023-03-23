@@ -430,7 +430,6 @@ module Ignoring_inline = struct
   let compare = [%compare: _ * (int[@ignore]) * int]
   let _ = compare
   let equal = [%compare.equal: t]
-
   let%test _ = equal (0, 1, 2) (9, 1, 2)
   let%test _ = equal (0, 1, 2) (0, 9, 2)
   let%test _ = not (equal (0, 1, 2) (0, 1, 9))
