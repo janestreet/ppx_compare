@@ -13,6 +13,18 @@ open Ppxlib
 open Ast_builder.Default
 include Ppx_compare_expander_intf
 
+(* Attribute for marking local parameters *)
+let local_loc ~loc = Loc.make ~loc "ocaml.local"
+
+let local_attr ~loc =
+  Ast_builder.Default.attribute ~loc ~name:(local_loc ~loc) ~payload:(PStr [])
+;;
+
+(* Type with local attribute attached *)
+let ptyp_local ~loc typ =
+  { typ with ptyp_attributes = local_attr ~loc :: typ.ptyp_attributes }
+;;
+
 type kind =
   | Compare
   | Equal
@@ -184,8 +196,9 @@ module Make (Params : Params) = struct
 
   let tp_name n = Printf.sprintf "_cmp__%s" n
 
-  let type_ ~hide ~loc ty =
+  let type_ ~with_local ~hide ~loc ty =
     let loc = { loc with loc_ghost = true } in
+    let ty = if with_local then ptyp_local ~loc ty else ty in
     let ptyp_attributes =
       if hide
       then Merlin_helpers.hide_attribute :: ty.ptyp_attributes
@@ -195,9 +208,13 @@ module Make (Params : Params) = struct
     [%type: [%t ty] -> [%t hty] -> [%t result_type ~loc]]
   ;;
 
-  let function_name = function
-    | "t" -> name
-    | s -> name ^ "_" ^ s
+  let function_name ~with_local typename =
+    let name =
+      match typename with
+      | "t" -> name
+      | s -> name ^ "_" ^ s
+    in
+    if with_local then name ^ "__local" else name
   ;;
 
   let compare_ignore ~loc value1 value2 =
@@ -207,23 +224,27 @@ module Make (Params : Params) = struct
       [%e const ~loc Equal]]
   ;;
 
-  let rec compare_applied ~hide ~constructor ~args value1 value2 =
+  let rec compare_applied ~hide ~with_local ~constructor ~args value1 value2 =
     let args =
-      List.map args ~f:(compare_of_ty_fun ~hide ~type_constraint:false)
+      List.map args ~f:(compare_of_ty_fun ~hide ~with_local ~type_constraint:false)
       @ [ value1; value2 ]
     in
-    type_constr_conv ~loc:(Located.loc constructor) constructor args ~f:function_name
+    type_constr_conv
+      ~loc:(Located.loc constructor)
+      constructor
+      args
+      ~f:(function_name ~with_local)
 
-  and compare_of_tuple ~hide loc tys value1 value2 =
+  and compare_of_tuple ~hide ~with_local loc tys value1 value2 =
     with_tuple loc ~value:value1 ~tys (fun elems1 ->
       with_tuple loc ~value:value2 ~tys (fun elems2 ->
         let exprs =
           List.map2_exn elems1 elems2 ~f:(fun (v1, t) (v2, _) ->
-            compare_of_ty ~hide t v1 v2)
+            compare_of_ty ~hide ~with_local t v1 v2)
         in
         chain_if ~loc exprs))
 
-  and compare_variant ~hide loc row_fields value1 value2 =
+  and compare_variant ~hide ~with_local loc row_fields value1 value2 =
     let map row =
       match row.prf_desc with
       | Rtag ({ txt = cnstr; _ }, true, _) | Rtag ({ txt = cnstr; _ }, _, []) ->
@@ -237,7 +258,7 @@ module Make (Params : Params) = struct
       | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
         let v1 = gen_symbol ~prefix:"_left" ()
         and v2 = gen_symbol ~prefix:"_right" () in
-        let body = compare_of_ty ~hide tp (evar ~loc v1) (evar ~loc v2) in
+        let body = compare_of_ty ~hide ~with_local tp (evar ~loc v1) (evar ~loc v2) in
         case
           ~guard:None
           ~lhs:
@@ -265,7 +286,14 @@ module Make (Params : Params) = struct
                [ ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v1)
                ; ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v2)
                ])
-          ~rhs:(compare_applied ~hide ~constructor:id ~args (evar ~loc v1) (evar ~loc v2))
+          ~rhs:
+            (compare_applied
+               ~hide
+               ~with_local
+               ~constructor:id
+               ~args
+               (evar ~loc v1)
+               (evar ~loc v2))
       | Rinherit ty ->
         Location.raise_errorf ~loc:ty.ptyp_loc "Ppx_compare.compare_variant: unknown type"
     in
@@ -284,7 +312,7 @@ module Make (Params : Params) = struct
     in
     phys_equal_first value1 value2 e
 
-  and branches_of_sum ~hide cds =
+  and branches_of_sum ~hide ~with_local cds =
     let rightmost_index = List.length cds - 1 in
     List.concat
       (List.mapi cds ~f:(fun i cd ->
@@ -310,6 +338,7 @@ module Make (Params : Params) = struct
                ~rhs:
                  (compare_of_record_no_phys_equal
                     ~hide
+                    ~with_local
                     loc
                     lds
                     (evar ~loc value1)
@@ -352,7 +381,7 @@ module Make (Params : Params) = struct
                 List.map ids_ty ~f:(fun (_l, r, _ty) -> pvar ~loc r) |> ppat_tuple ~loc
               and body =
                 List.map ids_ty ~f:(fun (l, r, ty) ->
-                  compare_of_ty ~hide ty (evar ~loc l) (evar ~loc r))
+                  compare_of_ty ~hide ~with_local ty (evar ~loc l) (evar ~loc r))
                 |> chain_if ~loc
               in
               let res =
@@ -374,7 +403,7 @@ module Make (Params : Params) = struct
                 in
                 [ res; case pcnstr pany Less; case pany pcnstr Greater ]))))
 
-  and compare_sum ~hide loc cds value1 value2 =
+  and compare_sum ~hide ~with_local loc cds value1 value2 =
     let is_sum_type_with_all_constant_constructors =
       List.for_all cds ~f:(fun cd ->
         Option.is_none cd.pcd_res
@@ -390,28 +419,28 @@ module Make (Params : Params) = struct
       (* the compiler will optimize the polymorphic comparison to an integer one *)
       poly ~loc value1 value2
     else (
-      let mcs = branches_of_sum ~hide cds in
+      let mcs = branches_of_sum ~hide ~with_local cds in
       let e = pexp_match ~loc (pexp_tuple ~loc [ value1; value2 ]) mcs in
       phys_equal_first value1 value2 e)
 
-  and compare_of_ty ~hide ty value1 value2 =
+  and compare_of_ty ~hide ~with_local ty value1 value2 =
     let loc = ty.ptyp_loc in
     if core_type_is_ignored ty
     then compare_ignore ~loc value1 value2
     else (
       match ty.ptyp_desc with
       | Ptyp_constr (constructor, args) ->
-        compare_applied ~hide ~constructor ~args value1 value2
-      | Ptyp_tuple tys -> compare_of_tuple ~hide loc tys value1 value2
+        compare_applied ~hide ~with_local ~constructor ~args value1 value2
+      | Ptyp_tuple tys -> compare_of_tuple ~hide ~with_local loc tys value1 value2
       | Ptyp_var name -> eapply ~loc (evar ~loc (tp_name name)) [ value1; value2 ]
       | Ptyp_arrow _ ->
         Location.raise_errorf ~loc "ppx_compare: Functions can not be compared."
       | Ptyp_variant (row_fields, Closed, None) ->
-        compare_variant ~hide loc row_fields value1 value2
+        compare_variant ~hide ~with_local loc row_fields value1 value2
       | Ptyp_any -> compare_ignore ~loc value1 value2
       | _ -> Location.raise_errorf ~loc "ppx_compare: unknown type")
 
-  and compare_of_ty_fun ~hide ~type_constraint ty =
+  and compare_of_ty_fun ~hide ~with_local ~type_constraint ty =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
     let do_hide hide_fun x = if hide then hide_fun x else x in
     let a = gen_symbol ~prefix:"a" () in
@@ -421,12 +450,14 @@ module Make (Params : Params) = struct
     let mk_pat x =
       if type_constraint then ppat_constraint ~loc (pvar ~loc x) ty else pvar ~loc x
     in
-    let body = do_hide Merlin_helpers.hide_expression (compare_of_ty ~hide ty e_a e_b) in
+    let body =
+      do_hide Merlin_helpers.hide_expression (compare_of_ty ~hide ~with_local ty e_a e_b)
+    in
     eta_reduce_if_possible
       [%expr
         fun [%p mk_pat a] [%p do_hide Merlin_helpers.hide_pattern (mk_pat b)] -> [%e body]]
 
-  and compare_of_record_no_phys_equal ~hide loc lds value1 value2 =
+  and compare_of_record_no_phys_equal ~hide ~with_local loc lds value1 value2 =
     let is_evar = function
       | { pexp_desc = Pexp_ident _; _ } -> true
       | _ -> false
@@ -439,22 +470,23 @@ module Make (Params : Params) = struct
       let label = Located.map lident ld.pld_name in
       compare_of_ty
         ~hide
+        ~with_local
         ld.pld_type
         (pexp_field ~loc value1 label)
         (pexp_field ~loc value2 label))
     |> chain_if ~loc
   ;;
 
-  let compare_of_record ~hide loc lds value1 value2 =
-    compare_of_record_no_phys_equal ~hide loc lds value1 value2
+  let compare_of_record ~hide ~with_local loc lds value1 value2 =
+    compare_of_record_no_phys_equal ~hide ~with_local loc lds value1 value2
     |> phys_equal_first value1 value2
   ;;
 
   let compare_abstract loc type_name v_a v_b = abstract ~loc ~type_name v_a v_b
 
-  let scheme_of_td ~hide td =
+  let scheme_of_td ~hide ~with_local td =
     let loc = td.ptype_loc in
-    let type_ = combinator_type_of_type_declaration td ~f:(type_ ~hide) in
+    let type_ = combinator_type_of_type_declaration td ~f:(type_ ~hide ~with_local) in
     match td.ptype_params with
     | [] -> type_
     | l ->
@@ -462,7 +494,7 @@ module Make (Params : Params) = struct
       ptyp_poly ~loc vars type_
   ;;
 
-  let compare_of_td ~hide td ~rec_flag =
+  let compare_of_td ~hide ~with_local td ~rec_flag =
     let loc = td.ptype_loc in
     let a = gen_symbol ~prefix:"a" () in
     let b = gen_symbol ~prefix:"b" () in
@@ -470,8 +502,8 @@ module Make (Params : Params) = struct
     let v_b = evar ~loc b in
     let function_body =
       match td.ptype_kind with
-      | Ptype_variant cds -> compare_sum ~hide loc cds v_a v_b
-      | Ptype_record lds -> compare_of_record ~hide loc lds v_a v_b
+      | Ptype_variant cds -> compare_sum ~hide ~with_local loc cds v_a v_b
+      | Ptype_record lds -> compare_of_record ~hide ~with_local loc lds v_a v_b
       | Ptype_open ->
         Location.raise_errorf ~loc "ppx_compare: open types are not yet supported"
       | Ptype_abstract ->
@@ -484,14 +516,14 @@ module Make (Params : Params) = struct
                 ~loc:ty.ptyp_loc
                 "ppx_compare: cannot compare open polymorphic variant types"
             | Ptyp_variant (row_fields, _, _) ->
-              compare_variant ~hide loc row_fields v_a v_b
-            | _ -> compare_of_ty ~hide ty v_a v_b))
+              compare_variant ~hide ~with_local loc row_fields v_a v_b
+            | _ -> compare_of_ty ~hide ~with_local ty v_a v_b))
     in
     let extra_names =
       List.map td.ptype_params ~f:(fun p -> tp_name (get_type_param_name p).txt)
     in
     let patts = List.map (extra_names @ [ a; b ]) ~f:(pvar ~loc)
-    and bnd = pvar ~loc (function_name td.ptype_name.txt) in
+    and bnd = pvar ~loc (function_name ~with_local td.ptype_name.txt) in
     let poly_scheme =
       match extra_names with
       | [] -> false
@@ -504,16 +536,52 @@ module Make (Params : Params) = struct
     then
       value_binding
         ~loc
-        ~pat:(ppat_constraint ~loc bnd (scheme_of_td ~hide td))
+        ~pat:(ppat_constraint ~loc bnd (scheme_of_td ~hide ~with_local td))
         ~expr:body
     else
       value_binding
         ~loc
         ~pat:bnd
-        ~expr:(pexp_constraint ~loc body (scheme_of_td ~hide td))
+        ~expr:(pexp_constraint ~loc body (scheme_of_td ~hide ~with_local td))
   ;;
 
-  let str_type_decl ~ctxt (rec_flag, tds) =
+  let bindings_of_tds tds ~hide ~with_local ~rec_flag =
+    List.map tds ~f:(fun td -> compare_of_td td ~hide ~with_local ~rec_flag)
+  ;;
+
+  let eta_expand2 ~loc f =
+    eabstract
+      ~loc
+      [ pvar ~loc "a"; pvar ~loc "b" ]
+      (eapply ~loc f [ evar ~loc "a"; evar ~loc "b" ])
+  ;;
+
+  let aliases_of_tds tds ~hide =
+    (* So that ~localize doesn't double the size of the generated code, we define the non
+       @local function as an alias to the @local function. This only works for ground
+       types, as [('a -> 'a -> int) -> 'a list -> 'a list -> int] is a type that is
+       neither stronger nor weaker than the same type with [@local] on the 'a and 'a
+       list. If the compiler supports polymorphism over locality one day, we may be able
+       to only generate one version of the code, the local version. *)
+    if List.for_all tds ~f:(fun td -> List.is_empty td.ptype_params)
+    then
+      Some
+        (List.map tds ~f:(fun td ->
+           let loc = td.ptype_name.loc in
+           value_binding
+             ~loc
+             ~pat:(pvar ~loc (function_name ~with_local:false td.ptype_name.txt))
+             ~expr:
+               (pexp_constraint
+                  ~loc
+                  (eta_expand2
+                     ~loc
+                     (evar ~loc (function_name ~with_local:true td.ptype_name.txt)))
+                  (scheme_of_td ~hide ~with_local:false td))))
+    else None
+  ;;
+
+  let str_type_decl ~ctxt (rec_flag, tds) localize =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
     let hide = not (Expansion_context.Deriver.inline ctxt) in
     let tds = List.map tds ~f:name_type_params_in_td in
@@ -529,54 +597,83 @@ module Make (Params : Params) = struct
       #go
         ()
     in
-    let bindings = List.map tds ~f:(compare_of_td ~hide ~rec_flag) in
-    [ pstr_value ~loc rec_flag bindings ]
+    if localize
+    then
+      [ pstr_value ~loc rec_flag (bindings_of_tds tds ~hide ~with_local:true ~rec_flag)
+      ; (match aliases_of_tds tds ~hide with
+         | Some values -> pstr_value ~loc Nonrecursive values
+         | None ->
+           pstr_value
+             ~loc
+             rec_flag
+             (bindings_of_tds tds ~hide ~with_local:false ~rec_flag))
+      ]
+    else
+      [ pstr_value ~loc rec_flag (bindings_of_tds tds ~hide ~with_local:false ~rec_flag) ]
   ;;
 
-  let mk_sig ~ctxt (_rec_flag, tds) =
+  let mk_sig ~ctxt ~localize (_rec_flag, tds) =
     let hide = not (Expansion_context.Deriver.inline ctxt) in
     let tds = List.map tds ~f:name_type_params_in_td in
-    List.map tds ~f:(fun td ->
-      let compare_of = combinator_type_of_type_declaration td ~f:(type_ ~hide) in
-      let name = function_name td.ptype_name.txt in
-      let loc = td.ptype_loc in
-      psig_value
-        ~loc
-        (value_description
-           ~loc
-           ~name:{ td.ptype_name with txt = name }
-           ~type_:compare_of
-           ~prim:[]))
+    List.concat_map tds ~f:(fun td ->
+      let generate ~with_local =
+        let compare_of =
+          combinator_type_of_type_declaration td ~f:(type_ ~hide ~with_local)
+        in
+        let name = function_name ~with_local td.ptype_name.txt in
+        let loc = td.ptype_loc in
+        psig_value
+          ~loc
+          (value_description
+             ~loc
+             ~name:{ td.ptype_name with txt = name }
+             ~type_:compare_of
+             ~prim:[])
+      in
+      if localize
+      then [ generate ~with_local:false; generate ~with_local:true ]
+      else [ generate ~with_local:false ])
   ;;
 
-  let sig_type_decl ~ctxt (rec_flag, tds) =
+  let sig_type_decl ~ctxt (rec_flag, tds) localize =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
     let module_name =
       match kind with
       | Compare -> "Comparable"
       | Equal -> "Equal"
     in
-    let sg_name = Printf.sprintf "Ppx_compare_lib.%s.S" module_name in
-    match mk_named_sig ~loc ~sg_name ~handle_polymorphic_variant:false tds with
-    | Some include_infos -> [ psig_include ~loc include_infos ]
-    | None -> mk_sig ~ctxt (rec_flag, tds)
+    let mk_named_sig ~with_local =
+      let module_type_name = if with_local then "S_local" else "S" in
+      let sg_name = Printf.sprintf "Ppx_compare_lib.%s.%s" module_name module_type_name in
+      mk_named_sig ~loc ~sg_name ~handle_polymorphic_variant:false tds
+    in
+    match mk_named_sig ~with_local:false, mk_named_sig ~with_local:true with
+    | Some include_infos, _ when not localize -> [ psig_include ~loc include_infos ]
+    | Some include_infos, Some include_infos_local when localize ->
+      [ psig_include ~loc include_infos; psig_include ~loc include_infos_local ]
+    | _ -> mk_sig ~ctxt ~localize (rec_flag, tds)
   ;;
 
-  let compare_core_type ty = compare_of_ty_fun ~hide:true ~type_constraint:true ty
-  let core_type = compare_core_type
+  let compare_core_type ~with_local ty =
+    compare_of_ty_fun ~hide:true ~with_local ~type_constraint:true ty
+  ;;
+
+  let core_type ~with_local = compare_core_type ~with_local
 end
 
 module Compare = struct
   include Make (Compare_params)
 
-  let equal_core_type ty =
+  let equal_core_type ~with_local ty =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
     let arg1 = gen_symbol () in
     let arg2 = gen_symbol () in
     let body =
       Merlin_helpers.hide_expression
         [%expr
-          match [%e compare_core_type ty] [%e evar ~loc arg1] [%e evar ~loc arg2] with
+          match
+            [%e compare_core_type ~with_local ty] [%e evar ~loc arg1] [%e evar ~loc arg2]
+          with
           | 0 -> true
           | _ -> false]
     in

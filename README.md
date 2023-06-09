@@ -146,3 +146,44 @@ can be abbreviated:
       }
     [@@deriving compare]
 ```
+
+Local-accepting compare functions
+----------------------------
+
+This ppx includes the option to support local allocation, a nonstandard OCaml extension
+available at: https://github.com/ocaml-flambda/ocaml-jst
+
+In both structures and signatures, `[@@deriving compare ~localize]` (and similarly for
+`equal`) generates definitions with the following types, in addition to the usual
+definitions:
+
+```
+(* Monomorphic types *)
+val compare__local : (t [@local]) -> (t [@local]) -> int
+val equal__local : (t [@local]) -> (t [@local]) -> bool
+
+(* Parameterized types *)
+val compare__local
+    : (('a [@local]) -> ('a [@local]) -> int)
+    -> ('a t [@local])
+    -> ('a t [@local])
+    -> int
+val equal__local
+    : (('a [@local]) -> ('a [@local]) -> bool)
+    -> ('a t [@local])
+    -> ('a t [@local])
+    -> bool
+```
+
+You can also use the `[%compare_local: _]`, `[%equal_local: _]` and
+`[%compare_local.equal: _]` extension points to generate the corresponding
+types and functions.
+
+For types named something other than `t`, the naming pattern is similar
+to the non-local versions:
+
+```ocaml
+type foo
+
+val compare_foo__local : (foo [@local]) -> (foo [@local]) -> int
+```
