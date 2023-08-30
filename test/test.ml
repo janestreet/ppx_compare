@@ -506,7 +506,7 @@ module Ignoring_field = struct
          match compare_int a__1375_.b b__1376_.b with
          | 0 -> compare_int a__1375_.c b__1376_.c
          | n -> n)
-         : t -> t -> int)
+      : t -> t -> int)
   ;;
 
   let _ = compare
@@ -517,7 +517,7 @@ module Ignoring_field = struct
        then true
        else
          Stdlib.( && ) (equal_int a__1377_.b b__1378_.b) (equal_int a__1377_.c b__1378_.c)
-         : t -> t -> bool)
+      : t -> t -> bool)
   ;;
 
   let _ = equal
@@ -557,7 +557,7 @@ module Ignoring = struct
          with
          | 0 -> compare_string t__1398_ t__1400_
          | n -> n)
-         : t -> t -> int)
+      : t -> t -> int)
   ;;
 
   let _ = compare
@@ -574,7 +574,7 @@ module Ignoring = struct
             and (_ : _) = t__1405_ in
             true)
            (equal_string t__1404_ t__1406_))
-         : t -> t -> bool)
+      : t -> t -> bool)
   ;;
 
   let _ = equal
@@ -605,7 +605,7 @@ module Ignoring_with_type = struct
            and (_ : _) = b__1408_.b in
            0
          | n -> n)
-         : t -> t -> int)
+      : t -> t -> int)
   ;;
 
   let _ = compare
@@ -720,7 +720,7 @@ end = struct
            (match compare__local _a__1549_ _b__1550_ with
             | 0 -> compare__local _a__1551_ _b__1552_
             | n -> n))
-         : (t[@ocaml.local]) -> (t[@ocaml.local]) -> int)
+      : (t[@ocaml.local]) -> (t[@ocaml.local]) -> int)
   ;;
 
   let _ = compare__local
@@ -746,7 +746,7 @@ end = struct
            Stdlib.( && )
              (equal__local _a__1561_ _b__1562_)
              (equal__local _a__1563_ _b__1564_))
-         : (t[@ocaml.local]) -> (t[@ocaml.local]) -> bool)
+      : (t[@ocaml.local]) -> (t[@ocaml.local]) -> bool)
   ;;
 
   let _ = equal__local

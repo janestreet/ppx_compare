@@ -3,7 +3,6 @@
    is especially important to not use polymorphic comparisons, since we are moving more
    and more to code that doesn't have them in scope. *)
 
-
 (* Note: I am introducing a few unnecessary explicit closures, (not all of them some are
    unnecessary due to the value restriction).
 *)
@@ -48,8 +47,8 @@ module type Params = sig
 end
 
 module Make_attrs (Name : sig
-    val name : string
-  end) : Attrs = struct
+  val name : string
+end) : Attrs = struct
   let ignore_label_declaration =
     Attribute.declare
       (Name.name ^ ".ignore")
@@ -100,8 +99,8 @@ module Compare_params : Params = struct
   ;;
 
   module Attrs = Make_attrs (struct
-      let name = name
-    end)
+    let name = name
+  end)
 end
 
 module Equal_params : Params = struct
@@ -128,8 +127,8 @@ module Equal_params : Params = struct
   ;;
 
   module Attrs = Make_attrs (struct
-      let name = name
-    end)
+    let name = name
+  end)
 end
 
 module Make (Params : Params) = struct
@@ -466,14 +465,14 @@ module Make (Params : Params) = struct
     assert (is_evar value2);
     List.filter lds ~f:(fun ld -> not (label_is_ignored ld))
     |> List.map ~f:(fun ld ->
-      let loc = ld.pld_loc in
-      let label = Located.map lident ld.pld_name in
-      compare_of_ty
-        ~hide
-        ~with_local
-        ld.pld_type
-        (pexp_field ~loc value1 label)
-        (pexp_field ~loc value2 label))
+         let loc = ld.pld_loc in
+         let label = Located.map lident ld.pld_name in
+         compare_of_ty
+           ~hide
+           ~with_local
+           ld.pld_type
+           (pexp_field ~loc value1 label)
+           (pexp_field ~loc value2 label))
     |> chain_if ~loc
   ;;
 
@@ -587,14 +586,14 @@ module Make (Params : Params) = struct
     let tds = List.map tds ~f:name_type_params_in_td in
     let rec_flag =
       (object
-        inherit type_is_recursive rec_flag tds as super
+         inherit type_is_recursive rec_flag tds as super
 
-        method! label_declaration ld =
-          if not (label_is_ignored ld) then super#label_declaration ld
+         method! label_declaration ld =
+           if not (label_is_ignored ld) then super#label_declaration ld
 
-        method! core_type ty = if not (core_type_is_ignored ty) then super#core_type ty
+         method! core_type ty = if not (core_type_is_ignored ty) then super#core_type ty
       end)
-      #go
+        #go
         ()
     in
     if localize

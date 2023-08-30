@@ -34,7 +34,7 @@ module Equal = struct
     then
       (* On 32bits, polymmorphic comparison of int64 values is not specialized *)
       fun _ _ ->
-        false
+      false
     else (Stdlib.( = ) : int64 equal)
   ;;
 end
