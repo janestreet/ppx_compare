@@ -12,16 +12,11 @@ open Ppxlib
 open Ast_builder.Default
 include Ppx_compare_expander_intf
 
-(* Attribute for marking local parameters *)
-let local_loc ~loc = Loc.make ~loc "ocaml.local"
-
-let local_attr ~loc =
-  Ast_builder.Default.attribute ~loc ~name:(local_loc ~loc) ~payload:(PStr [])
-;;
-
-(* Type with local attribute attached *)
-let ptyp_local ~loc typ =
-  { typ with ptyp_attributes = local_attr ~loc :: typ.ptyp_attributes }
+(* Two-argument function, possibly with [local_] arguments *)
+let ptyp_arrow2 ~loc ~local_args arg1 arg2 res =
+  if local_args
+  then [%type: ([%t arg1][@ocaml.local]) -> ([%t arg2][@ocaml.local]) -> [%t res]]
+  else [%type: [%t arg1] -> [%t arg2] -> [%t res]]
 ;;
 
 type kind =
@@ -197,14 +192,13 @@ module Make (Params : Params) = struct
 
   let type_ ~with_local ~hide ~loc ty =
     let loc = { loc with loc_ghost = true } in
-    let ty = if with_local then ptyp_local ~loc ty else ty in
     let ptyp_attributes =
       if hide
       then Merlin_helpers.hide_attribute :: ty.ptyp_attributes
       else ty.ptyp_attributes
     in
     let hty = { ty with ptyp_attributes } in
-    [%type: [%t ty] -> [%t hty] -> [%t result_type ~loc]]
+    ptyp_arrow2 ~loc ~local_args:with_local ty hty (result_type ~loc)
   ;;
 
   let function_name ~with_local typename =
