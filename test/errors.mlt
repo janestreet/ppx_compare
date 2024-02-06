@@ -32,7 +32,8 @@ type t =
   }
 [@@deriving compare, equal]
 
-[%%expect {|
+[%%expect
+  {|
 |}]
 
 type t =
@@ -41,5 +42,6 @@ type t =
   }
 [@@deriving compare, equal]
 
-[%%expect {|
+[%%expect
+  {|
 |}]

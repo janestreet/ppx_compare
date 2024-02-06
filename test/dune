@@ -1,4 +1,8 @@
-(library (name comparelib_test)
- (preprocess (pps ppxlib ppx_compare ppx_inline_test)))
+(library
+ (name comparelib_test)
+ (preprocess
+  (pps ppxlib ppx_compare ppx_inline_test)))
 
-(alias (name DEFAULT) (deps test.ml.pp))
+(alias
+ (name DEFAULT)
+ (deps test.ml.pp))

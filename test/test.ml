@@ -42,9 +42,9 @@ module type M1_sig_wrong_name = sig
     val compare_t1 : t1 -> t1 -> int
     val equal_t1 : t1 -> t1 -> bool
     val compare_t1 : t1 -> t1 -> int
-    val compare_t1__local : (t1[@ocaml.local]) -> (t1[@ocaml.local]) -> int
+    val compare_t1__local : t1 -> t1 -> int
     val equal_t1 : t1 -> t1 -> bool
-    val equal_t1__local : (t1[@ocaml.local]) -> (t1[@ocaml.local]) -> bool
+    val equal_t1__local : t1 -> t1 -> bool
   end
   [@@ocaml.doc "@inline"]
 
@@ -78,20 +78,9 @@ module type M2_sig_wrong_name = sig
     val compare_t1 : ('a -> 'a -> int) -> 'a t1 -> 'a t1 -> int
     val equal_t1 : ('a -> 'a -> bool) -> 'a t1 -> 'a t1 -> bool
     val compare_t1 : ('a -> 'a -> int) -> 'a t1 -> 'a t1 -> int
-
-    val compare_t1__local
-      :  (('a[@ocaml.local]) -> ('a[@ocaml.local]) -> int)
-      -> ('a t1[@ocaml.local])
-      -> ('a t1[@ocaml.local])
-      -> int
-
+    val compare_t1__local : ('a -> 'a -> int) -> 'a t1 -> 'a t1 -> int
     val equal_t1 : ('a -> 'a -> bool) -> 'a t1 -> 'a t1 -> bool
-
-    val equal_t1__local
-      :  (('a[@ocaml.local]) -> ('a[@ocaml.local]) -> bool)
-      -> ('a t1[@ocaml.local])
-      -> ('a t1[@ocaml.local])
-      -> bool
+    val equal_t1__local : ('a -> 'a -> bool) -> 'a t1 -> 'a t1 -> bool
   end
   [@@ocaml.doc "@inline"]
 
@@ -483,8 +472,8 @@ end = struct
 
     val compare : 'a t -> 'a t -> int
     val equal : 'a t -> 'a t -> bool
-    val compare__local : ('a t[@local]) -> ('a t[@local]) -> int
-    val equal__local : ('a t[@local]) -> ('a t[@local]) -> bool
+    val compare__local : 'a t -> 'a t -> int
+    val equal__local : 'a t -> 'a t -> bool
   end
 end
 
@@ -720,7 +709,7 @@ end = struct
            (match compare__local _a__1549_ _b__1550_ with
             | 0 -> compare__local _a__1551_ _b__1552_
             | n -> n))
-      : (t[@ocaml.local]) -> (t[@ocaml.local]) -> int)
+      : t -> t -> int)
   ;;
 
   let _ = compare__local
@@ -746,7 +735,7 @@ end = struct
            Stdlib.( && )
              (equal__local _a__1561_ _b__1562_)
              (equal__local _a__1563_ _b__1564_))
-      : (t[@ocaml.local]) -> (t[@ocaml.local]) -> bool)
+      : t -> t -> bool)
   ;;
 
   let _ = equal__local
