@@ -162,17 +162,19 @@ module Make (Params : Params) = struct
       ld
   ;;
 
-  let with_tuple loc ~value ~tys f =
+  let with_tuple loc ~value ~ltys f =
     (* generate
        let id_1, id_2, id_3, ... id_n = value in expr
        where expr is the result of (f [id_1, ty_1 ; id_2, ty_2; ...])
     *)
-    let names_types = List.map tys ~f:(fun t -> gen_symbol ~prefix:"t" (), t) in
-    let pattern =
-      let l = List.map names_types ~f:(fun (n, _) -> pvar ~loc n) in
-      ppat_tuple ~loc l
+    let names_types =
+      List.map ltys ~f:(fun (lbl, t) -> gen_symbol ~prefix:"t" (), lbl, t)
     in
-    let e = f (List.map names_types ~f:(fun (n, t) -> evar ~loc n, t)) in
+    let pattern =
+      let l = List.map names_types ~f:(fun (n, lbl, _) -> lbl, pvar ~loc n) in
+      Ppxlib_jane.Jane_syntax.Pattern.pat_of ~loc ~attrs:[] (Jpat_tuple (l, Closed))
+    in
+    let e = f (List.map names_types ~f:(fun (n, _, t) -> evar ~loc n, t)) in
     let binding = value_binding ~loc ~pat:pattern ~expr:value in
     pexp_let ~loc Nonrecursive [ binding ] e
   ;;
@@ -228,9 +230,9 @@ module Make (Params : Params) = struct
       args
       ~f:(function_name ~with_local)
 
-  and compare_of_tuple ~hide ~with_local loc tys value1 value2 =
-    with_tuple loc ~value:value1 ~tys (fun elems1 ->
-      with_tuple loc ~value:value2 ~tys (fun elems2 ->
+  and compare_of_tuple ~hide ~with_local loc ltys value1 value2 =
+    with_tuple loc ~value:value1 ~ltys (fun elems1 ->
+      with_tuple loc ~value:value2 ~ltys (fun elems2 ->
         let exprs =
           List.map2_exn elems1 elems2 ~f:(fun (v1, t) (v2, _) ->
             compare_of_ty ~hide ~with_local t v1 v2)
@@ -421,17 +423,32 @@ module Make (Params : Params) = struct
     if core_type_is_ignored ty
     then compare_ignore ~loc value1 value2
     else (
-      match ty.ptyp_desc with
-      | Ptyp_constr (constructor, args) ->
-        compare_applied ~hide ~with_local ~constructor ~args value1 value2
-      | Ptyp_tuple tys -> compare_of_tuple ~hide ~with_local loc tys value1 value2
-      | Ptyp_var name -> eapply ~loc (evar ~loc (tp_name name)) [ value1; value2 ]
-      | Ptyp_arrow _ ->
-        Location.raise_errorf ~loc "ppx_compare: Functions can not be compared."
-      | Ptyp_variant (row_fields, Closed, None) ->
-        compare_variant ~hide ~with_local loc row_fields value1 value2
-      | Ptyp_any -> compare_ignore ~loc value1 value2
-      | _ -> Location.raise_errorf ~loc "ppx_compare: unknown type")
+      match Ppxlib_jane.Jane_syntax.Core_type.of_ast ty with
+      | Some (Jtyp_tuple ltps, _attrs) ->
+        compare_of_tuple ~hide ~with_local loc ltps value1 value2
+      | Some (Jtyp_layout _, _) ->
+        Location.raise_errorf
+          ~loc
+          "Layout annotations are not currently supported with [ppx_compare]."
+      | None ->
+        (match ty.ptyp_desc with
+         | Ptyp_constr (constructor, args) ->
+           compare_applied ~hide ~with_local ~constructor ~args value1 value2
+         | Ptyp_tuple tys ->
+           compare_of_tuple
+             ~hide
+             ~with_local
+             loc
+             (List.map ~f:(fun ty -> None, ty) tys)
+             value1
+             value2
+         | Ptyp_var name -> eapply ~loc (evar ~loc (tp_name name)) [ value1; value2 ]
+         | Ptyp_arrow _ ->
+           Location.raise_errorf ~loc "ppx_compare: Functions can not be compared."
+         | Ptyp_variant (row_fields, Closed, None) ->
+           compare_variant ~hide ~with_local loc row_fields value1 value2
+         | Ptyp_any -> compare_ignore ~loc value1 value2
+         | _ -> Location.raise_errorf ~loc "ppx_compare: unknown type"))
 
   and compare_of_ty_fun ~hide ~with_local ~type_constraint ty =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
