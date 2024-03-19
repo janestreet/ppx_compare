@@ -568,9 +568,9 @@ module Make (Params : Params) = struct
 
   let aliases_of_tds tds ~hide =
     (* So that ~localize doesn't double the size of the generated code, we define the non
-       @local function as an alias to the @local function. This only works for ground
+       local_ function as an alias to the local_ function. This only works for ground
        types, as [('a -> 'a -> int) -> 'a list -> 'a list -> int] is a type that is
-       neither stronger nor weaker than the same type with [@local] on the 'a and 'a
+       neither stronger nor weaker than the same type with local_ on the 'a and 'a
        list. If the compiler supports polymorphism over locality one day, we may be able
        to only generate one version of the code, the local version. *)
     if List.for_all tds ~f:(fun td -> List.is_empty td.ptype_params)

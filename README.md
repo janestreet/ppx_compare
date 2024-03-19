@@ -159,19 +159,19 @@ definitions:
 
 ```
 (* Monomorphic types *)
-val compare__local : (t [@local]) -> (t [@local]) -> int
-val equal__local : (t [@local]) -> (t [@local]) -> bool
+val compare__local : local_ t -> local_ t -> int
+val equal__local : local_ t  -> local_ t -> bool
 
 (* Parameterized types *)
 val compare__local
-    : (('a [@local]) -> ('a [@local]) -> int)
-    -> ('a t [@local])
-    -> ('a t [@local])
+    : (local_ 'a -> local_ 'a -> int)
+    -> local_ 'a t
+    -> local_ 'a t
     -> int
 val equal__local
-    : (('a [@local]) -> ('a [@local]) -> bool)
-    -> ('a t [@local])
-    -> ('a t [@local])
+    : (local_ 'a -> local_ 'a -> bool)
+    -> local_ 'a t
+    -> local_ 'a t
     -> bool
 ```
 
@@ -185,5 +185,5 @@ to the non-local versions:
 ```ocaml
 type foo
 
-val compare_foo__local : (foo [@local]) -> (foo [@local]) -> int
+val compare_foo__local : local_ foo -> local_ foo -> int
 ```

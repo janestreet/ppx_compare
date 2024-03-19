@@ -11,7 +11,7 @@ module type S = sig
 
       [hide] controls whether some [[@merlin.hide]] attributes should be added.
 
-      [with_local] adds [[@ocaml.local]] annotation around the input types.
+      [with_local] adds local_ annotation around the input types.
   *)
   val type_ : with_local:bool -> hide:bool -> loc:Location.t -> core_type -> core_type
 
@@ -22,7 +22,7 @@ module type S = sig
 
   (** In [str_type_decl] and [sig_type_decl], passing [true] for the third argument
       generates additional functions that take local arguments. We generate, e.g.
-      [val compare__local : (t [@local]) -> (t [@local]) -> int] in addition to [compare]
+      [val compare__local : local_ t -> local_ t -> int] in addition to [compare]
       in order to incrementally grow the portion of the tree which supports local
       comparison.
 
