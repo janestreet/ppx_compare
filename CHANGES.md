@@ -1,3 +1,8 @@
+## Release v0.17.0
+
+* Support comparing locally-allocated values via `[@@deriving compare ~localize]`.
+
+
 ## git version
 
 - Optimized comparison for sum types when all constructors are constant.
