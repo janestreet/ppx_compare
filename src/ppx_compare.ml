@@ -34,25 +34,25 @@ let () =
   ; "@compare.equal", "@compare_local.equal", Equal.type_, Compare.equal_core_type
   ]
   |> List.concat_map ~f:(fun (name, local_name, type_, core_type) ->
-       [ name, type_ ~with_local:false, core_type ~with_local:false
-       ; local_name, type_ ~with_local:true, core_type ~with_local:true
-       ])
+    [ name, type_ ~with_local:false, core_type ~with_local:false
+    ; local_name, type_ ~with_local:true, core_type ~with_local:true
+    ])
   |> List.iter ~f:(fun (name, type_, core_type) ->
-       Driver.register_transformation
-         (String.strip name ~drop:(Char.equal '@'))
-         ~rules:
-           [ Context_free.Rule.extension
-               (Extension.declare
-                  name
-                  Core_type
-                  Ast_pattern.(ptyp __)
-                  (fun ~loc ~path:_ ty ->
-                    type_ ~hide:true ~loc (replace_underscores_by_variables ty)))
-           ; Context_free.Rule.extension
-               (Extension.declare
-                  name
-                  Expression
-                  Ast_pattern.(ptyp __)
-                  (fun ~loc:_ ~path:_ ty -> core_type ty))
-           ])
+    Driver.register_transformation
+      (String.strip name ~drop:(Char.equal '@'))
+      ~rules:
+        [ Context_free.Rule.extension
+            (Extension.declare
+               name
+               Core_type
+               Ast_pattern.(ptyp __)
+               (fun ~loc ~path:_ ty ->
+                 type_ ~hide:true ~loc (replace_underscores_by_variables ty)))
+        ; Context_free.Rule.extension
+            (Extension.declare
+               name
+               Expression
+               Ast_pattern.(ptyp __)
+               (fun ~loc:_ ~path:_ ty -> core_type ty))
+        ])
 ;;

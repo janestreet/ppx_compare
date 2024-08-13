@@ -42,8 +42,8 @@ module type Params = sig
 end
 
 module Make_attrs (Name : sig
-  val name : string
-end) : Attrs = struct
+    val name : string
+  end) : Attrs = struct
   let ignore_label_declaration =
     Attribute.declare
       (Name.name ^ ".ignore")
@@ -94,8 +94,8 @@ module Compare_params : Params = struct
   ;;
 
   module Attrs = Make_attrs (struct
-    let name = name
-  end)
+      let name = name
+    end)
 end
 
 module Equal_params : Params = struct
@@ -122,8 +122,8 @@ module Equal_params : Params = struct
   ;;
 
   module Attrs = Make_attrs (struct
-    let name = name
-  end)
+      let name = name
+    end)
 end
 
 module Make (Params : Params) = struct
@@ -363,9 +363,10 @@ module Make (Params : Params) = struct
                 ; case pcnstr pany Less
                 ; case pany pcnstr Greater
                 ]
-            | tps ->
+            | args ->
               let ids_ty =
-                List.map tps ~f:(fun ty ->
+                List.map args ~f:(fun arg ->
+                  let ty = Ppxlib_jane.Shim.Pcstr_tuple_arg.to_core_type arg in
                   let a = gen_symbol ~prefix:"_a" () in
                   let b = gen_symbol ~prefix:"_b" () in
                   a, b, ty)
@@ -476,14 +477,14 @@ module Make (Params : Params) = struct
     assert (is_evar value2);
     List.filter lds ~f:(fun ld -> not (label_is_ignored ld))
     |> List.map ~f:(fun ld ->
-         let loc = ld.pld_loc in
-         let label = Located.map lident ld.pld_name in
-         compare_of_ty
-           ~hide
-           ~with_local
-           ld.pld_type
-           (pexp_field ~loc value1 label)
-           (pexp_field ~loc value2 label))
+      let loc = ld.pld_loc in
+      let label = Located.map lident ld.pld_name in
+      compare_of_ty
+        ~hide
+        ~with_local
+        ld.pld_type
+        (pexp_field ~loc value1 label)
+        (pexp_field ~loc value2 label))
     |> chain_if ~loc
   ;;
 

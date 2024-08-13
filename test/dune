@@ -1,5 +1,6 @@
 (library
  (name comparelib_test)
+ (libraries base)
  (preprocess
   (pps ppxlib ppx_compare ppx_inline_test)))
 
