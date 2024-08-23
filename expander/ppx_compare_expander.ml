@@ -15,7 +15,7 @@ include Ppx_compare_expander_intf
 (* Two-argument function, possibly with [local_] arguments *)
 let ptyp_arrow2 ~loc ~local_args arg1 arg2 res =
   if local_args
-  then [%type: [%t arg1] -> [%t arg2] -> [%t res]]
+  then [%type: local_ [%t arg1] -> local_ [%t arg2] -> [%t res]]
   else [%type: [%t arg1] -> [%t arg2] -> [%t res]]
 ;;
 
