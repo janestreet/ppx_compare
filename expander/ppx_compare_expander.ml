@@ -172,7 +172,7 @@ module Make (Params : Params) = struct
     in
     let pattern =
       let l = List.map names_types ~f:(fun (n, lbl, _) -> lbl, pvar ~loc n) in
-      Ppxlib_jane.Jane_syntax.Pattern.pat_of ~loc ~attrs:[] (Jpat_tuple (l, Closed))
+      Ppxlib_jane.Ast_builder.Default.ppat_tuple ~loc l Closed
     in
     let e = f (List.map names_types ~f:(fun (n, _, t) -> evar ~loc n, t)) in
     let binding = value_binding ~loc ~pat:pattern ~expr:value in
@@ -424,32 +424,40 @@ module Make (Params : Params) = struct
     if core_type_is_ignored ty
     then compare_ignore ~loc value1 value2
     else (
-      match Ppxlib_jane.Jane_syntax.Core_type.of_ast ty with
-      | Some (Jtyp_tuple ltps, _attrs) ->
-        compare_of_tuple ~hide ~with_local loc ltps value1 value2
-      | Some (Jtyp_layout _, _) ->
+      match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
+      | Ptyp_constr (constructor, args) ->
+        compare_applied ~hide ~with_local ~constructor ~args value1 value2
+      | Ptyp_tuple labeled_tys ->
+        compare_of_tuple ~hide ~with_local loc labeled_tys value1 value2
+      | Ptyp_var (name, None) -> eapply ~loc (evar ~loc (tp_name name)) [ value1; value2 ]
+      | Ptyp_arrow _ ->
+        Location.raise_errorf ~loc "ppx_compare: Functions can not be compared."
+      | Ptyp_variant (row_fields, Closed, None) ->
+        compare_variant ~hide ~with_local loc row_fields value1 value2
+      | Ptyp_variant (row_fields, Closed, Some _) ->
+        (* We can always cast something of the form [< `A ... `Z > `A ...] to the
+              most general case [`A ... `Z]
+
+              Then the function signature is
+              [< `A ... `Z > `A ...] -> [< `A ... `Z > `A ...] -> int_or_bool
+              and the two inputs don't even have to be the same type.
+        *)
+        let v1 = gen_symbol ~prefix:"v1" ()
+        and v2 = gen_symbol ~prefix:"v2" () in
+        let ty_without_constraints =
+          { ty with ptyp_desc = Ptyp_variant (row_fields, Closed, None) }
+        in
+        [%expr
+          let [%p pvar ~loc v1] = ([%e value1] :> [%t ty_without_constraints])
+          and [%p pvar ~loc v2] = ([%e value2] :> [%t ty_without_constraints]) in
+          [%e
+            compare_variant ~hide ~with_local loc row_fields (evar ~loc v1) (evar ~loc v2)]]
+      | Ptyp_any None -> compare_ignore ~loc value1 value2
+      | Ptyp_var (_, Some _) | Ptyp_any (Some _) ->
         Location.raise_errorf
           ~loc
           "Layout annotations are not currently supported with [ppx_compare]."
-      | None ->
-        (match ty.ptyp_desc with
-         | Ptyp_constr (constructor, args) ->
-           compare_applied ~hide ~with_local ~constructor ~args value1 value2
-         | Ptyp_tuple tys ->
-           compare_of_tuple
-             ~hide
-             ~with_local
-             loc
-             (List.map ~f:(fun ty -> None, ty) tys)
-             value1
-             value2
-         | Ptyp_var name -> eapply ~loc (evar ~loc (tp_name name)) [ value1; value2 ]
-         | Ptyp_arrow _ ->
-           Location.raise_errorf ~loc "ppx_compare: Functions can not be compared."
-         | Ptyp_variant (row_fields, Closed, None) ->
-           compare_variant ~hide ~with_local loc row_fields value1 value2
-         | Ptyp_any -> compare_ignore ~loc value1 value2
-         | _ -> Location.raise_errorf ~loc "ppx_compare: unknown type"))
+      | _ -> Location.raise_errorf ~loc "ppx_compare: unknown type")
 
   and compare_of_ty_fun ~hide ~with_local ~type_constraint ty =
     let loc = { ty.ptyp_loc with loc_ghost = true } in

@@ -744,3 +744,25 @@ end = struct
 
   [@@@end]
 end
+
+module Polymorphic_variants_fully_poly_inputs : sig
+  module Upper_bound_only : sig
+    val compare : [< `A | `B | `C of int ] -> [< `A | `B | `C of int ] -> int
+    val equal : [< `A | `B | `C of int ] -> [< `A | `B | `C of int ] -> bool
+  end
+
+  module Upper_and_lower_bounds : sig
+    val compare : [< `A | `B | `C of int > `A ] -> [< `A | `B | `C of int > `A ] -> int
+    val equal : [< `A | `B | `C of int > `A ] -> [< `A | `B | `C of int > `A ] -> bool
+  end
+end = struct
+  module Upper_bound_only = struct
+    let compare = [%compare: [< `A | `B | `C of int ]]
+    let equal = [%compare.equal: [< `A | `B | `C of int ]]
+  end
+
+  module Upper_and_lower_bounds = struct
+    let compare = [%compare: [< `A | `B | `C of int > `A ]]
+    let equal = [%compare.equal: [< `A | `B | `C of int > `A ]]
+  end
+end

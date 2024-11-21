@@ -19,10 +19,12 @@ let replace_underscores_by_variables =
     object
       inherit Ast_traverse.map as super
 
-      method! core_type_desc =
-        function
-        | Ptyp_any -> Ptyp_var (gen_symbol ~prefix:"a" ())
-        | t -> super#core_type_desc t
+      method! core_type_desc t =
+        match Ppxlib_jane.Shim.Core_type_desc.of_parsetree t with
+        | Ptyp_any jkind ->
+          Ppxlib_jane.Shim.Core_type_desc.to_parsetree
+            (Ptyp_var (gen_symbol ~prefix:"a" (), jkind))
+        | _ -> super#core_type_desc t
     end
   in
   map#core_type

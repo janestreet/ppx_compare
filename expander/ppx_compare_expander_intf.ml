@@ -42,7 +42,7 @@ module type S = sig
     :  ctxt:Expansion_context.Deriver.t
     -> rec_flag * type_declaration list
     -> bool (** [true] means generate a signature with local arguments *)
-    -> signature
+    -> signature_item list
 
   module Attrs : Attrs
 
