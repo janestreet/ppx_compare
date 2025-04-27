@@ -7,7 +7,7 @@
    unnecessary due to the value restriction).
 *)
 
-open Base
+open Stdppx
 open Ppxlib
 open Ast_builder.Default
 include Ppx_compare_expander_intf
@@ -22,6 +22,13 @@ let ptyp_arrow2 ~loc ~local_args arg1 arg2 res =
 type kind =
   | Compare
   | Equal
+
+module Ordering = struct
+  type t =
+    | Less
+    | Equal
+    | Greater
+end
 
 module type Params = sig
   val name : string
@@ -234,7 +241,7 @@ module Make (Params : Params) = struct
     with_tuple loc ~value:value1 ~ltys (fun elems1 ->
       with_tuple loc ~value:value2 ~ltys (fun elems2 ->
         let exprs =
-          List.map2_exn elems1 elems2 ~f:(fun (v1, t) (v2, _) ->
+          List.map2 elems1 elems2 ~f:(fun (v1, t) (v2, _) ->
             compare_of_ty ~hide ~with_local t v1 v2)
         in
         chain_if ~loc exprs))
@@ -402,7 +409,7 @@ module Make (Params : Params) = struct
   and compare_sum ~hide ~with_local loc cds value1 value2 =
     let is_sum_type_with_all_constant_constructors =
       List.for_all cds ~f:(fun cd ->
-        Option.is_none cd.pcd_res
+        (not (Option.is_some cd.pcd_res))
         &&
         (* we could support GADTs, but the general case
            doesn't, so let's hold off *)
@@ -509,20 +516,24 @@ module Make (Params : Params) = struct
     match td.ptype_params with
     | [] -> type_
     | l ->
-      let vars = List.map l ~f:get_type_param_name in
-      ptyp_poly ~loc vars type_
+      let vars = List.map l ~f:Ppxlib_jane.get_type_param_name_and_jkind in
+      Ppxlib_jane.Ast_builder.Default.ptyp_poly ~loc vars type_
   ;;
 
-  let compare_of_td ~hide ~with_local td ~rec_flag =
+  let compare_of_td ~hide ~with_local ~portable td ~rec_flag =
     let loc = td.ptype_loc in
     let a = gen_symbol ~prefix:"a" () in
     let b = gen_symbol ~prefix:"b" () in
     let v_a = evar ~loc a in
     let v_b = evar ~loc b in
     let function_body =
-      match td.ptype_kind with
+      match Ppxlib_jane.Shim.Type_kind.of_parsetree td.ptype_kind with
       | Ptype_variant cds -> compare_sum ~hide ~with_local loc cds v_a v_b
       | Ptype_record lds -> compare_of_record ~hide ~with_local loc lds v_a v_b
+      | Ptype_record_unboxed_product _ ->
+        Location.raise_errorf
+          ~loc
+          "ppx_compare: unboxed record types are not yet supported"
       | Ptype_open ->
         Location.raise_errorf ~loc "ppx_compare: open types are not yet supported"
       | Ptype_abstract ->
@@ -551,21 +562,26 @@ module Make (Params : Params) = struct
     let body =
       eta_reduce_if_possible_and_nonrec ~rec_flag (eabstract ~loc patts function_body)
     in
+    let modes =
+      if portable then [ Loc.make (Ppxlib_jane.Mode "portable") ~loc ] else []
+    in
     if poly_scheme
     then
-      value_binding
+      Ppxlib_jane.Ast_builder.Default.value_binding
         ~loc
         ~pat:(ppat_constraint ~loc bnd (scheme_of_td ~hide ~with_local td))
         ~expr:body
+        ~modes
     else
-      value_binding
+      Ppxlib_jane.Ast_builder.Default.value_binding
         ~loc
         ~pat:bnd
         ~expr:(pexp_constraint ~loc body (scheme_of_td ~hide ~with_local td))
+        ~modes
   ;;
 
-  let bindings_of_tds tds ~hide ~with_local ~rec_flag =
-    List.map tds ~f:(fun td -> compare_of_td td ~hide ~with_local ~rec_flag)
+  let bindings_of_tds tds ~hide ~with_local ~portable ~rec_flag =
+    List.map tds ~f:(fun td -> compare_of_td td ~hide ~with_local ~portable ~rec_flag)
   ;;
 
   let eta_expand2 ~loc f =
@@ -600,7 +616,7 @@ module Make (Params : Params) = struct
     else None
   ;;
 
-  let str_type_decl ~ctxt (rec_flag, tds) localize =
+  let str_type_decl ~ctxt (rec_flag, tds) ~localize ~portable =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
     let hide = not (Expansion_context.Deriver.inline ctxt) in
     let tds = List.map tds ~f:name_type_params_in_td in
@@ -618,20 +634,27 @@ module Make (Params : Params) = struct
     in
     if localize
     then
-      [ pstr_value ~loc rec_flag (bindings_of_tds tds ~hide ~with_local:true ~rec_flag)
+      [ pstr_value
+          ~loc
+          rec_flag
+          (bindings_of_tds tds ~hide ~with_local:true ~portable ~rec_flag)
       ; (match aliases_of_tds tds ~hide with
          | Some values -> pstr_value ~loc Nonrecursive values
          | None ->
            pstr_value
              ~loc
              rec_flag
-             (bindings_of_tds tds ~hide ~with_local:false ~rec_flag))
+             (bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag))
       ]
     else
-      [ pstr_value ~loc rec_flag (bindings_of_tds tds ~hide ~with_local:false ~rec_flag) ]
+      [ pstr_value
+          ~loc
+          rec_flag
+          (bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag)
+      ]
   ;;
 
-  let mk_sig ~ctxt ~localize (_rec_flag, tds) =
+  let mk_sig ~ctxt (_rec_flag, tds) ~localize ~portable =
     let hide = not (Expansion_context.Deriver.inline ctxt) in
     let tds = List.map tds ~f:name_type_params_in_td in
     List.concat_map tds ~f:(fun td ->
@@ -643,10 +666,11 @@ module Make (Params : Params) = struct
         let loc = td.ptype_loc in
         psig_value
           ~loc
-          (value_description
+          (Ppxlib_jane.Ast_builder.Default.value_description
              ~loc
              ~name:{ td.ptype_name with txt = name }
              ~type_:compare_of
+             ~modalities:(if portable then [ Ppxlib_jane.Modality "portable" ] else [])
              ~prim:[])
       in
       if localize
@@ -654,7 +678,7 @@ module Make (Params : Params) = struct
       else [ generate ~with_local:false ])
   ;;
 
-  let sig_type_decl ~ctxt (rec_flag, tds) localize =
+  let sig_type_decl ~ctxt (rec_flag, tds) ~localize ~portable =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
     let module_name =
       match kind with
@@ -662,15 +686,23 @@ module Make (Params : Params) = struct
       | Equal -> "Equal"
     in
     let mk_named_sig ~with_local =
-      let module_type_name = if with_local then "S_local" else "S" in
-      let sg_name = Printf.sprintf "Ppx_compare_lib.%s.%s" module_name module_type_name in
+      let sg_name = Printf.sprintf "Ppx_compare_lib.%s.S" module_name in
       mk_named_sig ~loc ~sg_name ~handle_polymorphic_variant:false tds
+      |> Option.map ~f:(fun incl ->
+        if with_local then Ppxlib_jane.localize_include_sig incl else incl)
+    in
+    let psig_include include_infos =
+      Ppxlib_jane.Ast_builder.Default.psig_include
+        ~loc
+        ~modalities:
+          (if portable then [ Loc.make ~loc (Ppxlib_jane.Modality "portable") ] else [])
+        include_infos
     in
     match mk_named_sig ~with_local:false, mk_named_sig ~with_local:true with
-    | Some include_infos, _ when not localize -> [ psig_include ~loc include_infos ]
+    | Some include_infos, _ when not localize -> [ psig_include include_infos ]
     | Some include_infos, Some include_infos_local when localize ->
-      [ psig_include ~loc include_infos; psig_include ~loc include_infos_local ]
-    | _ -> mk_sig ~ctxt ~localize (rec_flag, tds)
+      [ psig_include include_infos; psig_include include_infos_local ]
+    | _ -> mk_sig ~ctxt (rec_flag, tds) ~localize ~portable
   ;;
 
   let compare_core_type ~with_local ty =

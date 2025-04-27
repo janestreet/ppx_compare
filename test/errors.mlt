@@ -41,3 +41,22 @@ type t =
 [@@deriving compare, equal]
 
 [%%expect {| |}]
+
+(* Use [compare ~portable] in structure context to get a better error message. *)
+
+module Non_portable : sig
+  type t [@@deriving compare]
+end =
+  Int
+
+type t =
+  { portable : int
+  ; non_portable : Non_portable.t
+  }
+[@@deriving compare ~portable]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: The value Non_portable.compare is nonportable, so cannot be used inside a function that is portable.
+|}]

@@ -1,5 +1,5 @@
 (library
  (name ppx_compare_lib)
  (public_name ppx_compare.runtime-lib)
- (libraries base)
+ (libraries)
  (preprocess no_preprocessing))
