@@ -2,7 +2,7 @@
  (name comparelib_test)
  (libraries base)
  (preprocess
-  (pps ppxlib ppx_compare ppx_inline_test)))
+  (pps ppxlib ppx_compare ppx_inline_test ppx_template)))
 
 (alias
  (name DEFAULT)

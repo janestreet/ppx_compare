@@ -6,13 +6,12 @@ module type Attrs = sig
 end
 
 module type S = sig
-  (** [type_ ~with_local ~hide ty] is [ty -> ty -> result_type] where [result_type]
-      is [int] for [compare] and [bool] for [equal].
+  (** [type_ ~with_local ~hide ty] is [ty -> ty -> result_type] where [result_type] is
+      [int] for [compare] and [bool] for [equal].
 
       [hide] controls whether some [[@merlin.hide]] attributes should be added.
 
-      [with_local] adds local_ annotation around the input types.
-  *)
+      [with_local] adds local_ annotation around the input types. *)
   val type_ : with_local:bool -> hide:bool -> loc:Location.t -> core_type -> core_type
 
   (** [core_type ~with_local ty] is an expression of type [ty -> ty -> result_type]
@@ -22,9 +21,8 @@ module type S = sig
 
   (** In [str_type_decl] and [sig_type_decl], passing [true] for the third argument
       generates additional functions that take local arguments. We generate, e.g.
-      [val compare__local : local_ t -> local_ t -> int] in addition to [compare]
-      in order to incrementally grow the portion of the tree which supports local
-      comparison.
+      [val compare__local : local_ t -> local_ t -> int] in addition to [compare] in order
+      to incrementally grow the portion of the tree which supports local comparison.
 
       We need both [compare] and [compare__local] since neither has a stronger type than
       the other. In the case of polymorphic types, this is due to the fact that
@@ -35,13 +33,15 @@ module type S = sig
   val str_type_decl
     :  ctxt:Expansion_context.Deriver.t
     -> rec_flag * type_declaration list
-    -> bool (** [true] means generate a definition with local arguments *)
+    -> localize:bool (** [true] means generate a definition with local arguments *)
+    -> portable:bool (** [true] means generate a definition annotated as [@@ portable] *)
     -> structure
 
   val sig_type_decl
     :  ctxt:Expansion_context.Deriver.t
     -> rec_flag * type_declaration list
-    -> bool (** [true] means generate a signature with local arguments *)
+    -> localize:bool (** [true] means generate a declaration with local arguments *)
+    -> portable:bool (** [true] means generate a declaration annotated as [@@ portable] *)
     -> signature_item list
 
   module Attrs : Attrs

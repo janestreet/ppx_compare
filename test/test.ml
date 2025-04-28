@@ -24,9 +24,9 @@ module type M1_sig = sig
     include Ppx_compare_lib.Comparable.S with type t := t
     include Ppx_compare_lib.Equal.S with type t := t
     include Ppx_compare_lib.Comparable.S with type t := t
-    include Ppx_compare_lib.Comparable.S_local with type t := t
+    include Ppx_compare_lib.Comparable.S__local with type t := t
     include Ppx_compare_lib.Equal.S with type t := t
-    include Ppx_compare_lib.Equal.S_local with type t := t
+    include Ppx_compare_lib.Equal.S__local with type t := t
   end
   [@@ocaml.doc "@inline"]
 
@@ -60,9 +60,9 @@ module type M2_sig = sig
     include Ppx_compare_lib.Comparable.S1 with type 'a t := 'a t
     include Ppx_compare_lib.Equal.S1 with type 'a t := 'a t
     include Ppx_compare_lib.Comparable.S1 with type 'a t := 'a t
-    include Ppx_compare_lib.Comparable.S_local1 with type 'a t := 'a t
+    include Ppx_compare_lib.Comparable.S1__local with type 'a t := 'a t
     include Ppx_compare_lib.Equal.S1 with type 'a t := 'a t
-    include Ppx_compare_lib.Equal.S_local1 with type 'a t := 'a t
+    include Ppx_compare_lib.Equal.S1__local with type 'a t := 'a t
   end
   [@@ocaml.doc "@inline"]
 
@@ -222,9 +222,9 @@ module type M26_sig = sig
     include Ppx_compare_lib.Comparable.S1 with type 'a t := 'a t
     include Ppx_compare_lib.Equal.S1 with type 'a t := 'a t
     include Ppx_compare_lib.Comparable.S1 with type 'a t := 'a t
-    include Ppx_compare_lib.Comparable.S_local1 with type 'a t := 'a t
+    include Ppx_compare_lib.Comparable.S1__local with type 'a t := 'a t
     include Ppx_compare_lib.Equal.S1 with type 'a t := 'a t
-    include Ppx_compare_lib.Equal.S_local1 with type 'a t := 'a t
+    include Ppx_compare_lib.Equal.S1__local with type 'a t := 'a t
   end
   [@@ocaml.doc "@inline"]
 
@@ -511,7 +511,7 @@ module Ignoring_field = struct
 
   let _ = equal
 
-  [@@@deriving.end]
+  [@@@end]
 
   let equal = [%compare.equal: t]
 end
@@ -568,7 +568,7 @@ module Ignoring = struct
 
   let _ = equal
 
-  [@@@deriving.end]
+  [@@@end]
 
   let%test _ = equal { a = 1, "hi" } { a = 2, "hi" }
   let%test _ = not (equal { a = 1, "hi" } { a = 1, "ho" })
@@ -599,7 +599,7 @@ module Ignoring_with_type = struct
 
   let _ = compare
 
-  [@@@deriving.end]
+  [@@@end]
 end
 
 module Enum_optim = struct
@@ -615,7 +615,7 @@ module Enum_optim = struct
   let equal = (Stdlib.( = ) : t -> t -> bool)
   let _ = equal
 
-  [@@@deriving.end]
+  [@@@end]
 end
 
 module Lazy_behavior = struct
@@ -674,9 +674,9 @@ module Local_with_aliased_comparisons : sig
     [@@@ocaml.warning "-32"]
 
     include Ppx_compare_lib.Comparable.S with type t := t
-    include Ppx_compare_lib.Comparable.S_local with type t := t
+    include Ppx_compare_lib.Comparable.S__local with type t := t
     include Ppx_compare_lib.Equal.S with type t := t
-    include Ppx_compare_lib.Equal.S_local with type t := t
+    include Ppx_compare_lib.Equal.S__local with type t := t
   end
   [@@ocaml.doc "@inline"]
 
