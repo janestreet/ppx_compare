@@ -75,23 +75,19 @@ module type M2_sig_wrong_name = sig
   include sig
     [@@@ocaml.warning "-32"]
 
-    val compare_t1 : ('a -> 'a -> int) -> 'a t1 -> 'a t1 -> int
-    val equal_t1 : ('a -> 'a -> bool) -> 'a t1 -> 'a t1 -> bool
-    val compare_t1 : ('a -> 'a -> int) -> 'a t1 -> 'a t1 -> int
+    val compare_t1 : 'a. ('a -> 'a -> int) -> 'a t1 -> 'a t1 -> int
+    val equal_t1 : 'a. ('a -> 'a -> bool) -> 'a t1 -> 'a t1 -> bool
+    val compare_t1 : 'a. ('a -> 'a -> int) -> 'a t1 -> 'a t1 -> int
 
     val compare_t1__local
-      :  (local_ 'a -> local_ 'a -> int)
-      -> local_ 'a t1
-      -> local_ 'a t1
-      -> int
+      : 'a.
+      (local_ 'a -> local_ 'a -> int) -> local_ 'a t1 -> local_ 'a t1 -> int
 
-    val equal_t1 : ('a -> 'a -> bool) -> 'a t1 -> 'a t1 -> bool
+    val equal_t1 : 'a. ('a -> 'a -> bool) -> 'a t1 -> 'a t1 -> bool
 
     val equal_t1__local
-      :  (local_ 'a -> local_ 'a -> bool)
-      -> local_ 'a t1
-      -> local_ 'a t1
-      -> bool
+      : 'a.
+      (local_ 'a -> local_ 'a -> bool) -> local_ 'a t1 -> local_ 'a t1 -> bool
   end
   [@@ocaml.doc "@inline"]
 
@@ -317,32 +313,20 @@ module type Polyrec_sig = sig
     [@@@ocaml.warning "-32"]
 
     val compare_t1
-      :  ('a -> 'a -> int)
-      -> ('b -> 'b -> int)
-      -> ('a, 'b) t1
-      -> ('a, 'b) t1
-      -> int
+      : 'a 'b.
+      ('a -> 'a -> int) -> ('b -> 'b -> int) -> ('a, 'b) t1 -> ('a, 'b) t1 -> int
 
     val compare_t2
-      :  ('a -> 'a -> int)
-      -> ('b -> 'b -> int)
-      -> ('a, 'b) t2
-      -> ('a, 'b) t2
-      -> int
+      : 'a 'b.
+      ('a -> 'a -> int) -> ('b -> 'b -> int) -> ('a, 'b) t2 -> ('a, 'b) t2 -> int
 
     val equal_t1
-      :  ('a -> 'a -> bool)
-      -> ('b -> 'b -> bool)
-      -> ('a, 'b) t1
-      -> ('a, 'b) t1
-      -> bool
+      : 'a 'b.
+      ('a -> 'a -> bool) -> ('b -> 'b -> bool) -> ('a, 'b) t1 -> ('a, 'b) t1 -> bool
 
     val equal_t2
-      :  ('a -> 'a -> bool)
-      -> ('b -> 'b -> bool)
-      -> ('a, 'b) t2
-      -> ('a, 'b) t2
-      -> bool
+      : 'a 'b.
+      ('a -> 'a -> bool) -> ('b -> 'b -> bool) -> ('a, 'b) t2 -> ('a, 'b) t2 -> bool
   end
   [@@ocaml.doc "@inline"]
 

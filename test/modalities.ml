@@ -91,12 +91,12 @@ end = struct
   let _ = fun (_ : t) -> ()
 
   let compare__local @ portable =
-    (fun a__007_ b__008_ ->
-       if Stdlib.( == ) a__007_ b__008_
+    (fun a__008_ b__009_ ->
+       if Stdlib.( == ) a__008_ b__009_
        then 0
        else (
-         match compare_int__local a__007_.a b__008_.a with
-         | 0 -> compare_int__local a__007_.b b__008_.b
+         match compare_int__local a__008_.a b__009_.a with
+         | 0 -> compare_int__local a__008_.b b__009_.b
          | n -> n)
      : local_ t -> local_ t -> int)
   ;;
@@ -207,14 +207,11 @@ module Recursive : sig
     [@@@ocaml.warning "-32"]
 
     val compare : t -> t -> int @@ portable
-    val compare_u : ('a -> 'a -> int) -> 'a u -> 'a u -> int @@ portable
+    val compare_u : 'a. ('a -> 'a -> int) -> 'a u -> 'a u -> int @@ portable
 
     val compare_v
-      :  ('a -> 'a -> int)
-      -> ('b -> 'b -> int)
-      -> ('a, 'b) v
-      -> ('a, 'b) v
-      -> int
+      : 'a 'b.
+      ('a -> 'a -> int) -> ('b -> 'b -> int) -> ('a, 'b) v -> ('a, 'b) v -> int
       @@ portable
   end
   [@@ocaml.doc "@inline"]
@@ -243,36 +240,36 @@ end = struct
   let _ = fun (_ : ('a, 'b) v) -> ()
 
   let rec compare @ portable =
-    (fun a__017_ b__018_ ->
-       if Stdlib.( == ) a__017_ b__018_
+    (fun a__019_ b__020_ ->
+       if Stdlib.( == ) a__019_ b__020_
        then 0
        else (
-         match compare_int a__017_.a b__018_.a with
-         | 0 -> compare_u compare_int a__017_.u b__018_.u
+         match compare_int a__019_.a b__020_.a with
+         | 0 -> compare_u compare_int a__019_.u b__020_.u
          | n -> n)
      : t -> t -> int)
 
   and compare_u : 'a. ('a -> 'a -> int) -> 'a u -> 'a u -> int @@ portable =
-    fun _cmp__a a__021_ b__022_ ->
-    if Stdlib.( == ) a__021_ b__022_
+    fun _cmp__a a__023_ b__024_ ->
+    if Stdlib.( == ) a__023_ b__024_
     then 0
     else (
-      match _cmp__a a__021_.b b__022_.b with
-      | 0 -> compare_v compare_int _cmp__a a__021_.v b__022_.v
+      match _cmp__a a__023_.b b__024_.b with
+      | 0 -> compare_v compare_int _cmp__a a__023_.v b__024_.v
       | n -> n)
 
   and compare_v
     : 'a 'b. ('a -> 'a -> int) -> ('b -> 'b -> int) -> ('a, 'b) v -> ('a, 'b) v -> int
     @@ portable
     =
-    fun _cmp__a _cmp__b a__027_ b__028_ ->
-    if Stdlib.( == ) a__027_ b__028_
+    fun _cmp__a _cmp__b a__029_ b__030_ ->
+    if Stdlib.( == ) a__029_ b__030_
     then 0
     else (
-      match _cmp__a a__027_.a b__028_.a with
+      match _cmp__a a__029_.a b__030_.a with
       | 0 ->
-        (match _cmp__b a__027_.b b__028_.b with
-         | 0 -> compare a__027_.t b__028_.t
+        (match _cmp__b a__029_.b b__030_.b with
+         | 0 -> compare a__029_.t b__030_.t
          | n -> n)
       | n -> n)
   ;;
