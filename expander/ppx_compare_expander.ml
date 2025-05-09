@@ -214,6 +214,14 @@ module Make (Params : Params) = struct
     let name =
       match typename with
       | "t" -> name
+      | s when String.is_prefix ~prefix:"t__" s ->
+        (* We carry [ppx_template] type name mangling over to the function, so that e.g.
+           [t__bits64] gets a [compare__bits64] *)
+        let template_suffix =
+          (* e.g. if [name] is "t__bits64", this is "__bits64" *)
+          String.drop_prefix s 1
+        in
+        name ^ template_suffix
       | s -> name ^ "_" ^ s
     in
     if with_local then name ^ "__local" else name
@@ -659,11 +667,18 @@ module Make (Params : Params) = struct
     let tds = List.map tds ~f:name_type_params_in_td in
     List.concat_map tds ~f:(fun td ->
       let generate ~with_local =
+        let loc = td.ptype_loc in
         let compare_of =
           combinator_type_of_type_declaration td ~f:(type_ ~hide ~with_local)
         in
+        let compare_of =
+          match td.ptype_params with
+          | [] -> compare_of
+          | l ->
+            let vars = List.map l ~f:Ppxlib_jane.get_type_param_name_and_jkind in
+            Ppxlib_jane.Ast_builder.Default.ptyp_poly ~loc vars compare_of
+        in
         let name = function_name ~with_local td.ptype_name.txt in
-        let loc = td.ptype_loc in
         psig_value
           ~loc
           (Ppxlib_jane.Ast_builder.Default.value_description
