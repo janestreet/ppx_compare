@@ -2,44 +2,35 @@ open Stdppx
 open Ppxlib
 open Ppx_compare_expander
 
-let add_deriver ~always_localize name (module E : Ppx_compare_expander.S) =
-  let str_type_decl, sig_type_decl =
-    match always_localize with
-    | false ->
-      let localize_and_portable_arg () =
-        Deriving.Args.(empty +> flag "localize" +> flag "portable")
-      in
-      ( Deriving.Generator.V2.make
-          (localize_and_portable_arg ())
-          (fun ~ctxt tds localize portable ->
-            E.str_type_decl ~ctxt tds ~localize ~portable)
-          ~attributes:E.str_attributes
-      , Deriving.Generator.V2.make
-          (localize_and_portable_arg ())
-          (fun ~ctxt tds localize portable ->
-             E.sig_type_decl ~ctxt tds ~localize ~portable) )
-    | true ->
-      let portable_arg () = Deriving.Args.(empty +> flag "portable") in
-      ( Deriving.Generator.V2.make
-          (portable_arg ())
-          (fun ~ctxt tds portable ->
-            E.str_type_decl ~ctxt tds ~localize:always_localize ~portable)
-          ~attributes:E.str_attributes
-      , Deriving.Generator.V2.make (portable_arg ()) (fun ~ctxt tds portable ->
-          E.sig_type_decl ~ctxt tds ~localize:always_localize ~portable) )
-  in
-  Deriving.add name ~str_type_decl ~sig_type_decl
+let generator f ~explicit_localize =
+  match explicit_localize with
+  | None ->
+    Deriving.Generator.V2.make
+      Deriving.Args.(empty +> flag "localize" +> flag "portable")
+      (fun ~ctxt ast localize portable -> f ~ctxt ast ~localize ~portable)
+  | Some localize ->
+    Deriving.Generator.V2.make
+      Deriving.Args.(empty +> flag "portable")
+      (fun ~ctxt ast portable -> f ~ctxt ast ~localize ~portable)
 ;;
 
-let compare = add_deriver ~always_localize:false "compare" (module Compare)
-let equal = add_deriver ~always_localize:false "equal" (module Equal)
+let deriver name (module M : S) ~explicit_localize =
+  Deriving.add
+    name
+    ~str_type_decl:(generator M.str_type_decl ~explicit_localize)
+    ~sig_type_decl:(generator M.sig_type_decl ~explicit_localize)
+;;
+
+let compare = deriver "compare" (module Compare) ~explicit_localize:None
+let equal = deriver "equal" (module Equal) ~explicit_localize:None
 
 let () =
-  add_deriver ~always_localize:true "compare__local" (module Compare) |> Deriving.ignore
+  deriver "compare__local" (module Compare) ~explicit_localize:(Some true)
+  |> Deriving.ignore
 ;;
 
 let () =
-  add_deriver ~always_localize:true "equal__local" (module Equal) |> Deriving.ignore
+  deriver "equal__local" (module Equal) ~explicit_localize:(Some true) |> Deriving.ignore
 ;;
 
 let replace_underscores_by_variables =
