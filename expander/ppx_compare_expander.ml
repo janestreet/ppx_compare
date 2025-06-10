@@ -19,6 +19,13 @@ let ptyp_arrow2 ~loc ~local_args arg1 arg2 res =
   else [%type: [%t arg1] -> [%t arg2] -> [%t res]]
 ;;
 
+(* Determine if a modalities list contains [global] *)
+let has_global_modality modas =
+  List.exists modas ~f:(function
+    | Ppxlib_jane.Modality "global" -> true
+    | _ -> false)
+;;
+
 type kind =
   | Compare
   | Equal
@@ -379,20 +386,30 @@ module Make (Params : Params) = struct
                 ; case pany pcnstr Greater
                 ]
             | args ->
-              let ids_ty =
+              let ids_ty_and_has_global =
                 List.map args ~f:(fun arg ->
-                  let ty = Ppxlib_jane.Shim.Pcstr_tuple_arg.to_core_type arg in
+                  let modalities, ty =
+                    Ppxlib_jane.Shim.Pcstr_tuple_arg.extract_modalities arg
+                  in
                   let a = gen_symbol ~prefix:"_a" () in
                   let b = gen_symbol ~prefix:"_b" () in
-                  a, b, ty)
+                  let has_global = has_global_modality modalities in
+                  a, b, ty, has_global)
               in
               let lpatt =
-                List.map ids_ty ~f:(fun (l, _r, _ty) -> pvar ~loc l) |> ppat_tuple ~loc
+                List.map ids_ty_and_has_global ~f:(fun (l, _r, _ty, _g) -> pvar ~loc l)
+                |> ppat_tuple ~loc
               and rpatt =
-                List.map ids_ty ~f:(fun (_l, r, _ty) -> pvar ~loc r) |> ppat_tuple ~loc
+                List.map ids_ty_and_has_global ~f:(fun (_l, r, _ty, _g) -> pvar ~loc r)
+                |> ppat_tuple ~loc
               and body =
-                List.map ids_ty ~f:(fun (l, r, ty) ->
-                  compare_of_ty ~hide ~with_local ty (evar ~loc l) (evar ~loc r))
+                List.map ids_ty_and_has_global ~f:(fun (l, r, ty, g) ->
+                  compare_of_ty
+                    ~hide
+                    ~with_local:(with_local && not g)
+                    ty
+                    (evar ~loc l)
+                    (evar ~loc r))
                 |> chain_if ~loc
               in
               let res =
@@ -487,9 +504,8 @@ module Make (Params : Params) = struct
     let body =
       do_hide Merlin_helpers.hide_expression (compare_of_ty ~hide ~with_local ty e_a e_b)
     in
-    eta_reduce_if_possible
-      [%expr
-        fun [%p mk_pat a] [%p do_hide Merlin_helpers.hide_pattern (mk_pat b)] -> [%e body]]
+    [%expr
+      fun [%p mk_pat a] [%p do_hide Merlin_helpers.hide_pattern (mk_pat b)] -> [%e body]]
 
   and compare_of_record_no_phys_equal ~hide ~with_local loc lds value1 value2 =
     let is_evar = function
@@ -500,11 +516,17 @@ module Make (Params : Params) = struct
     assert (is_evar value2);
     List.filter lds ~f:(fun ld -> not (label_is_ignored ld))
     |> List.map ~f:(fun ld ->
+      let modalities, ld = Ppxlib_jane.Shim.Label_declaration.extract_modalities ld in
+      let mut =
+        match ld.pld_mutable with
+        | Mutable -> true
+        | Immutable -> false
+      in
       let loc = ld.pld_loc in
       let label = Located.map lident ld.pld_name in
       compare_of_ty
         ~hide
-        ~with_local
+        ~with_local:(with_local && not (has_global_modality modalities || mut))
         ld.pld_type
         (pexp_field ~loc value1 label)
         (pexp_field ~loc value2 label))
@@ -640,26 +662,33 @@ module Make (Params : Params) = struct
         #go
         ()
     in
+    let global_bindings () =
+      bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag
+    in
     if localize
-    then
-      [ pstr_value
-          ~loc
-          rec_flag
-          (bindings_of_tds tds ~hide ~with_local:true ~portable ~rec_flag)
-      ; (match aliases_of_tds tds ~hide with
-         | Some values -> pstr_value ~loc Nonrecursive values
-         | None ->
-           pstr_value
-             ~loc
-             rec_flag
-             (bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag))
-      ]
-    else
-      [ pstr_value
-          ~loc
-          rec_flag
-          (bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag)
-      ]
+    then (
+      let local_bindings =
+        bindings_of_tds tds ~hide ~with_local:true ~portable ~rec_flag
+      in
+      let global_bindings =
+        match aliases_of_tds tds ~hide with
+        | Some values -> values
+        | None -> global_bindings ()
+      in
+      match rec_flag with
+      | Recursive ->
+        (* In a recursive type, the [@ local] comparators may depend on the [@ global]
+           ones if the type refers to itself behind an [@@ global] modality. Since the
+           [@ global] comparator is often defined in terms of the [@ local] one, we want
+           the [@ local] and [@ global] bindings to be mutually recursive. *)
+        [ pstr_value ~loc rec_flag (local_bindings @ global_bindings) ]
+      | Nonrecursive ->
+        (* In a nonrecursive type, only the [@ global] comparators reference the [@ local]
+           ones. We define them later, in a second of two sets of non-recursive bindings. *)
+        [ pstr_value ~loc rec_flag local_bindings
+        ; pstr_value ~loc rec_flag global_bindings
+        ])
+    else [ pstr_value ~loc rec_flag (global_bindings ()) ]
   ;;
 
   let mk_sig ~ctxt (_rec_flag, tds) ~localize ~portable =

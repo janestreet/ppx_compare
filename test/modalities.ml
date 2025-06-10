@@ -245,22 +245,31 @@ end = struct
        then 0
        else (
          match compare_int a__019_.a b__020_.a with
-         | 0 -> compare_u compare_int a__019_.u b__020_.u
+         | 0 ->
+           compare_u
+             (fun a__021_ b__022_ -> compare_int a__021_ b__022_)
+             a__019_.u
+             b__020_.u
          | n -> n)
      : t -> t -> int)
 
-  and compare_u : 'a. ('a -> 'a -> int) -> 'a u -> 'a u -> int @@ portable =
+  and compare_u : 'a. (('a -> 'a -> int) -> 'a u -> 'a u -> int) @ portable =
     fun _cmp__a a__023_ b__024_ ->
     if Stdlib.( == ) a__023_ b__024_
     then 0
     else (
       match _cmp__a a__023_.b b__024_.b with
-      | 0 -> compare_v compare_int _cmp__a a__023_.v b__024_.v
+      | 0 ->
+        compare_v
+          (fun a__025_ b__026_ -> compare_int a__025_ b__026_)
+          (fun a__027_ b__028_ -> _cmp__a a__027_ b__028_)
+          a__023_.v
+          b__024_.v
       | n -> n)
 
   and compare_v
-    : 'a 'b. ('a -> 'a -> int) -> ('b -> 'b -> int) -> ('a, 'b) v -> ('a, 'b) v -> int
-    @@ portable
+    : 'a 'b. (('a -> 'a -> int) -> ('b -> 'b -> int) -> ('a, 'b) v -> ('a, 'b) v -> int)
+    @ portable
     =
     fun _cmp__a _cmp__b a__029_ b__030_ ->
     if Stdlib.( == ) a__029_ b__030_

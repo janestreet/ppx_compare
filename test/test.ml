@@ -705,11 +705,11 @@ end = struct
             | 0 -> compare__local _a__1551_ _b__1552_
             | n -> n))
      : local_ t -> local_ t -> int)
-  ;;
+
+  and compare = (fun a b -> compare__local a b : t -> t -> int)
 
   let _ = compare__local
-  let compare = (fun a b -> compare__local a b : t -> t -> int)
-  let _ = compare
+  and _ = compare
 
   let rec equal__local =
     (fun a__1553_ b__1554_ ->
@@ -731,11 +731,11 @@ end = struct
              (equal__local _a__1561_ _b__1562_)
              (equal__local _a__1563_ _b__1564_))
      : local_ t -> local_ t -> bool)
-  ;;
+
+  and equal = (fun a b -> equal__local a b : t -> t -> bool)
 
   let _ = equal__local
-  let equal = (fun a b -> equal__local a b : t -> t -> bool)
-  let _ = equal
+  and _ = equal
 
   [@@@end]
 end
