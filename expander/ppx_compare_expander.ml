@@ -19,6 +19,42 @@ let ptyp_arrow2 ~loc ~local_args arg1 arg2 res =
   else [%type: [%t arg1] -> [%t arg2] -> [%t res]]
 ;;
 
+let has_global_modality ~modalities ~attrs ~mut =
+  let explicit_modality () =
+    (* An explicit [global] modality is present *)
+    List.exists modalities ~f:(function
+      | Ppxlib_jane.Modality "global" -> true
+      | _ -> false)
+  in
+  let crosses_locality () =
+    (* The user manually specified that a particular type crosses locality *)
+    List.exists attrs ~f:(function
+      | { attr_name = { txt = "globalized"; loc = _ }
+        ; attr_payload = PStr []
+        ; attr_loc = _
+        } as attr ->
+        Attribute.mark_as_handled_manually attr;
+        true
+      | _ -> false)
+  in
+  let mutable_implied_modality () =
+    (* The field of a record is mutable *)
+    match mut with
+    | None | Some Immutable -> false
+    | Some Mutable ->
+      not
+        (List.exists attrs ~f:(function
+          | { attr_name = { txt = "no_mutable_implied_modalities"; loc = _ }
+            ; attr_payload = PStr []
+            ; attr_loc = _
+            } ->
+            (* This is an OxCaml compiler attribute; we do not have to "handle" it. *)
+            true
+          | _ -> false))
+  in
+  explicit_modality () || crosses_locality () || mutable_implied_modality ()
+;;
+
 type kind =
   | Compare
   | Equal
@@ -210,11 +246,11 @@ module Make (Params : Params) = struct
     ptyp_arrow2 ~loc ~local_args:with_local ty hty (result_type ~loc)
   ;;
 
-  let function_name ~with_local typename =
+  let function_name ~with_local ?functor_ typename =
     let name =
-      match typename with
-      | "t" -> name
-      | s when String.is_prefix ~prefix:"t__" s ->
+      match functor_, typename with
+      | None, "t" -> name
+      | None, s when String.is_prefix ~prefix:"t__" s ->
         (* We carry [ppx_template] type name mangling over to the function, so that e.g.
            [t__bits64] gets a [compare__bits64] *)
         let template_suffix =
@@ -222,7 +258,8 @@ module Make (Params : Params) = struct
           String.drop_prefix s 1
         in
         name ^ template_suffix
-      | s -> name ^ "_" ^ s
+      | None, s -> Printf.sprintf "%s_%s" name s
+      | Some path, s -> Printf.sprintf "%s_%s__%s" name path s
     in
     if with_local then name ^ "__local" else name
   ;;
@@ -239,7 +276,7 @@ module Make (Params : Params) = struct
       List.map args ~f:(compare_of_ty_fun ~hide ~with_local ~type_constraint:false)
       @ [ value1; value2 ]
     in
-    type_constr_conv
+    Ppx_helpers.type_constr_conv_expr
       ~loc:(Located.loc constructor)
       constructor
       args
@@ -255,72 +292,85 @@ module Make (Params : Params) = struct
         chain_if ~loc exprs))
 
   and compare_variant ~hide ~with_local loc row_fields value1 value2 =
-    let map row =
-      match row.prf_desc with
-      | Rtag ({ txt = cnstr; _ }, true, _) | Rtag ({ txt = cnstr; _ }, _, []) ->
-        case
-          ~guard:None
-          ~lhs:
-            (ppat_tuple
-               ~loc
-               [ ppat_variant ~loc cnstr None; ppat_variant ~loc cnstr None ])
-          ~rhs:(const ~loc Equal)
-      | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
-        let v1 = gen_symbol ~prefix:"_left" ()
-        and v2 = gen_symbol ~prefix:"_right" () in
-        let body = compare_of_ty ~hide ~with_local tp (evar ~loc v1) (evar ~loc v2) in
-        case
-          ~guard:None
-          ~lhs:
-            (ppat_tuple
-               ~loc
-               [ ppat_variant ~loc cnstr (Some (pvar ~loc v1))
-               ; ppat_variant ~loc cnstr (Some (pvar ~loc v2))
-               ])
-          ~rhs:body
-      | Rinherit { ptyp_desc = Ptyp_constr (id, args); _ } ->
-        (* quite sadly, this code doesn't handle:
+    let is_sum_type_with_all_constant_constructors =
+      List.for_all row_fields ~f:(function
+        | { prf_desc = Rtag (_, true, _); _ } (* includes constant case, or... *)
+        | { prf_desc = Rtag (_, _, []); _ } (* doesn't include any non-constant cases *)
+          -> true
+        | _ -> false)
+    in
+    if is_sum_type_with_all_constant_constructors
+    then poly ~loc value1 value2
+    else (
+      let map row =
+        match row.prf_desc with
+        | Rtag ({ txt = cnstr; _ }, true, _) (* includes constant case, or... *)
+        | Rtag ({ txt = cnstr; _ }, _, []) (* doesn't include any non-constant cases *) ->
+          case
+            ~guard:None
+            ~lhs:
+              (ppat_tuple
+                 ~loc
+                 [ ppat_variant ~loc cnstr None; ppat_variant ~loc cnstr None ])
+            ~rhs:(const ~loc Equal)
+        | Rtag ({ txt = cnstr; _ }, false, tp :: _) ->
+          let v1 = gen_symbol ~prefix:"_left" ()
+          and v2 = gen_symbol ~prefix:"_right" () in
+          let body = compare_of_ty ~hide ~with_local tp (evar ~loc v1) (evar ~loc v2) in
+          case
+            ~guard:None
+            ~lhs:
+              (ppat_tuple
+                 ~loc
+                 [ ppat_variant ~loc cnstr (Some (pvar ~loc v1))
+                 ; ppat_variant ~loc cnstr (Some (pvar ~loc v2))
+                 ])
+            ~rhs:body
+        | Rinherit { ptyp_desc = Ptyp_constr (id, args); _ } ->
+          (* quite sadly, this code doesn't handle:
            type 'a id = 'a with compare
            type t = [ `a | [ `b ] id ] with compare
            because it will generate a pattern #id, when id is not even a polymorphic
            variant in the first place.
            The culprit is caml though, since it only allows #id but not #([`b] id)
-        *)
-        let v1 = gen_symbol ~prefix:"_left" ()
-        and v2 = gen_symbol ~prefix:"_right" () in
-        case
-          ~guard:None
-          ~lhs:
-            (ppat_tuple
-               ~loc
-               [ ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v1)
-               ; ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v2)
-               ])
-          ~rhs:
-            (compare_applied
-               ~hide
-               ~with_local
-               ~constructor:id
-               ~args
-               (evar ~loc v1)
-               (evar ~loc v2))
-      | Rinherit ty ->
-        Location.raise_errorf ~loc:ty.ptyp_loc "Ppx_compare.compare_variant: unknown type"
-    in
-    let e =
-      let matched = pexp_tuple ~loc [ value1; value2 ] in
-      match List.map ~f:map row_fields with
-      | [ v ] -> pexp_match ~loc matched [ v ]
-      | l ->
-        pexp_match
-          ~loc
-          matched
-          (l
-           @ (* Providing we didn't screw up badly we now know that the tags of the variants
+          *)
+          let v1 = gen_symbol ~prefix:"_left" ()
+          and v2 = gen_symbol ~prefix:"_right" () in
+          case
+            ~guard:None
+            ~lhs:
+              (ppat_tuple
+                 ~loc
+                 [ ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v1)
+                 ; ppat_alias ~loc (ppat_type ~loc id) (Located.mk ~loc v2)
+                 ])
+            ~rhs:
+              (compare_applied
+                 ~hide
+                 ~with_local
+                 ~constructor:id
+                 ~args
+                 (evar ~loc v1)
+                 (evar ~loc v2))
+        | Rinherit ty ->
+          Location.raise_errorf
+            ~loc:ty.ptyp_loc
+            "Ppx_compare.compare_variant: unknown type"
+      in
+      let e =
+        let matched = pexp_tuple ~loc [ value1; value2 ] in
+        match List.map ~f:map row_fields with
+        | [ v ] -> pexp_match ~loc matched [ v ]
+        | l ->
+          pexp_match
+            ~loc
+            matched
+            (l
+             @ (* Providing we didn't screw up badly we now know that the tags of the variants
                 are different. We let pervasive do its magic. *)
-           [ case ~guard:None ~lhs:[%pat? x, y] ~rhs:(poly ~loc [%expr x] [%expr y]) ])
-    in
-    phys_equal_first value1 value2 e
+             [ case ~guard:None ~lhs:[%pat? x, y] ~rhs:(poly ~loc [%expr x] [%expr y]) ])
+      in
+      phys_equal_first value1 value2 e)
 
   and branches_of_sum ~hide ~with_local cds =
     let rightmost_index = List.length cds - 1 in
@@ -379,20 +429,37 @@ module Make (Params : Params) = struct
                 ; case pany pcnstr Greater
                 ]
             | args ->
-              let ids_ty =
+              let ids_ty_and_has_global =
                 List.map args ~f:(fun arg ->
-                  let ty = Ppxlib_jane.Shim.Pcstr_tuple_arg.to_core_type arg in
+                  let modalities, ty =
+                    Ppxlib_jane.Shim.Pcstr_tuple_arg.extract_modalities arg
+                  in
                   let a = gen_symbol ~prefix:"_a" () in
                   let b = gen_symbol ~prefix:"_b" () in
-                  a, b, ty)
+                  let has_global =
+                    has_global_modality
+                      ~modalities
+                      ~attrs:
+                        (Ppxlib_jane.Shim.Pcstr_tuple_arg.to_core_type arg)
+                          .ptyp_attributes
+                      ~mut:None
+                  in
+                  a, b, ty, has_global)
               in
               let lpatt =
-                List.map ids_ty ~f:(fun (l, _r, _ty) -> pvar ~loc l) |> ppat_tuple ~loc
+                List.map ids_ty_and_has_global ~f:(fun (l, _r, _ty, _g) -> pvar ~loc l)
+                |> ppat_tuple ~loc
               and rpatt =
-                List.map ids_ty ~f:(fun (_l, r, _ty) -> pvar ~loc r) |> ppat_tuple ~loc
+                List.map ids_ty_and_has_global ~f:(fun (_l, r, _ty, _g) -> pvar ~loc r)
+                |> ppat_tuple ~loc
               and body =
-                List.map ids_ty ~f:(fun (l, r, ty) ->
-                  compare_of_ty ~hide ~with_local ty (evar ~loc l) (evar ~loc r))
+                List.map ids_ty_and_has_global ~f:(fun (l, r, ty, g) ->
+                  compare_of_ty
+                    ~hide
+                    ~with_local:(with_local && not g)
+                    ty
+                    (evar ~loc l)
+                    (evar ~loc r))
                 |> chain_if ~loc
               in
               let res =
@@ -487,9 +554,8 @@ module Make (Params : Params) = struct
     let body =
       do_hide Merlin_helpers.hide_expression (compare_of_ty ~hide ~with_local ty e_a e_b)
     in
-    eta_reduce_if_possible
-      [%expr
-        fun [%p mk_pat a] [%p do_hide Merlin_helpers.hide_pattern (mk_pat b)] -> [%e body]]
+    [%expr
+      fun [%p mk_pat a] [%p do_hide Merlin_helpers.hide_pattern (mk_pat b)] -> [%e body]]
 
   and compare_of_record_no_phys_equal ~hide ~with_local loc lds value1 value2 =
     let is_evar = function
@@ -500,11 +566,18 @@ module Make (Params : Params) = struct
     assert (is_evar value2);
     List.filter lds ~f:(fun ld -> not (label_is_ignored ld))
     |> List.map ~f:(fun ld ->
+      let modalities, ld = Ppxlib_jane.Shim.Label_declaration.extract_modalities ld in
       let loc = ld.pld_loc in
       let label = Located.map lident ld.pld_name in
       compare_of_ty
         ~hide
-        ~with_local
+        ~with_local:
+          (with_local
+           && not
+                (has_global_modality
+                   ~modalities
+                   ~attrs:ld.pld_attributes
+                   ~mut:(Some ld.pld_mutable)))
         ld.pld_type
         (pexp_field ~loc value1 label)
         (pexp_field ~loc value2 label))
@@ -640,26 +713,33 @@ module Make (Params : Params) = struct
         #go
         ()
     in
+    let global_bindings () =
+      bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag
+    in
     if localize
-    then
-      [ pstr_value
-          ~loc
-          rec_flag
-          (bindings_of_tds tds ~hide ~with_local:true ~portable ~rec_flag)
-      ; (match aliases_of_tds tds ~hide with
-         | Some values -> pstr_value ~loc Nonrecursive values
-         | None ->
-           pstr_value
-             ~loc
-             rec_flag
-             (bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag))
-      ]
-    else
-      [ pstr_value
-          ~loc
-          rec_flag
-          (bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag)
-      ]
+    then (
+      let local_bindings =
+        bindings_of_tds tds ~hide ~with_local:true ~portable ~rec_flag
+      in
+      let global_bindings =
+        match aliases_of_tds tds ~hide with
+        | Some values -> values
+        | None -> global_bindings ()
+      in
+      match rec_flag with
+      | Recursive ->
+        (* In a recursive type, the [@ local] comparators may depend on the [@ global]
+           ones if the type refers to itself behind an [@@ global] modality. Since the
+           [@ global] comparator is often defined in terms of the [@ local] one, we want
+           the [@ local] and [@ global] bindings to be mutually recursive. *)
+        [ pstr_value ~loc rec_flag (local_bindings @ global_bindings) ]
+      | Nonrecursive ->
+        (* In a nonrecursive type, only the [@ global] comparators reference the [@ local]
+           ones. We define them later, in a second of two sets of non-recursive bindings. *)
+        [ pstr_value ~loc rec_flag local_bindings
+        ; pstr_value ~loc rec_flag global_bindings
+        ])
+    else [ pstr_value ~loc rec_flag (global_bindings ()) ]
   ;;
 
   let mk_sig ~ctxt (_rec_flag, tds) ~localize ~portable =
@@ -725,6 +805,10 @@ module Make (Params : Params) = struct
   ;;
 
   let core_type ~with_local = compare_core_type ~with_local
+
+  let pattern ~with_local id =
+    Ppx_helpers.type_constr_conv_pat id ~f:(function_name ~with_local)
+  ;;
 end
 
 module Compare = struct

@@ -42,6 +42,35 @@ type t =
 
 [%%expect {| |}]
 
+let [%compare: M.N(K).t] = ()
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Invalid identifier M.N(K).t for converter in pattern position. Only
+       simple identifiers (like t or string) or applications of functors with
+       simple identifiers (like M(K).t) are supported.
+|}]
+
+let [%compare: 'a] = ()
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Type variables are disallowed here to emphasize that type constraints
+       don't work as expected. Instead, consider using a locally abstract
+       type.
+|}]
+
+let [%compare: unit * unit] = ()
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Only type constructors are allowed here (e.g. [t], ['a t], or
+       [M(X).t]).
+|}]
+
 (* Use [compare ~portable] in structure context to get a better error message. *)
 
 module Non_portable : sig
