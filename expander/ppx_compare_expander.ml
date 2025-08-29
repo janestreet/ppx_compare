@@ -806,8 +806,21 @@ module Make (Params : Params) = struct
 
   let core_type ~with_local = compare_core_type ~with_local
 
-  let pattern ~with_local id =
-    Ppx_helpers.type_constr_conv_pat id ~f:(function_name ~with_local)
+  let pattern ~with_local ty =
+    let loc = { ty.ptyp_loc with loc_ghost = true } in
+    match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
+    | Ptyp_constr (id, _) ->
+      Ppx_helpers.type_constr_conv_pat ~loc id ~f:(function_name ~with_local)
+    | Ptyp_var (id, _) ->
+      let ty = { ty with ptyp_loc = loc } in
+      [%pat? ([%p pvar ~loc (tp_name id)] : [%t type_ ~with_local ~hide:true ~loc ty])]
+    | _ ->
+      Ast_builder.Default.ppat_extension
+        ~loc
+        (Location.error_extensionf
+           ~loc
+           "Only type variables and constructors are allowed here (e.g. ['a], [t], ['a \
+            t], or [M(X).t]).")
   ;;
 end
 

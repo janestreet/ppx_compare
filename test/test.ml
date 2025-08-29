@@ -756,6 +756,18 @@ end = struct
   type t [@@deriving compare__global, equal__global]
 end
 
+module Test__global_extensions_exists : sig
+  type t [@@deriving compare__global, equal__global]
+
+  val equal_via_compare : t -> t -> bool
+end = struct
+  type t = int
+
+  let compare = [%compare__global: int]
+  let equal = [%equal__global: int]
+  let equal_via_compare = [%compare.equal__global: int]
+end
+
 module Test__local_exists : sig
   type t [@@deriving compare ~localize, equal ~localize]
 
@@ -854,7 +866,7 @@ end = struct
   module Parameterized = struct
     type 'a t = 'a list
 
-    let [%compare: 'a t] = fun compare_a x y -> List.compare compare_a x y
+    let [%compare: 'a t] = fun [%compare: 'a] -> [%compare: 'a list]
 
     module type Comparable = sig
       type 'a t [@@deriving compare]

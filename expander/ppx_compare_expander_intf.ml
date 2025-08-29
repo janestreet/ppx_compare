@@ -19,9 +19,9 @@ module type S = sig
       [~with_local:true] will make the arguments local *)
   val core_type : with_local:bool -> core_type -> expression
 
-  (** [pattern ~with_local id] is a pattern binding the compare function for the type
-      [id]. [~with_local:true] is the local version *)
-  val pattern : with_local:bool -> longident loc -> pattern
+  (** [pattern ~with_local ty] is a pattern binding the compare function for the type
+      [ty]. [~with_local:true] is the local version *)
+  val pattern : with_local:bool -> core_type -> pattern
 
   (** In [str_type_decl] and [sig_type_decl], passing [true] for the third argument
       generates additional functions that take local arguments. We generate, e.g.

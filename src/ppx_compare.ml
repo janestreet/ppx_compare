@@ -2,12 +2,32 @@ open Stdppx
 open Ppxlib
 open Ppx_compare_expander
 
-let generator f ~explicit_localize =
+let require_explicit_locality = ref false
+
+let () =
+  Driver.add_arg
+    "-compare-require-explicit-locality"
+    (Set require_explicit_locality)
+    ~doc:
+      "If this flag is passed, [ppx_compare] will require locality to be stated \
+       explicitly. This means either using [[@@deriving compare__global]], [[@@deriving \
+       compare__local]], or the equivalent [[@@deriving compare [@mode m]]] with \
+       [ppx_template]."
+;;
+
+let generator f ~explicit_localize ~name =
   match explicit_localize with
   | None ->
     Deriving.Generator.V2.make
       Deriving.Args.(empty +> flag "localize" +> flag "portable")
-      (fun ~ctxt ast localize portable -> f ~ctxt ast ~localize ~portable)
+      (fun ~ctxt ast localize portable ->
+        if !require_explicit_locality && not localize
+        then
+          Location.raise_errorf
+            ~loc:(Expansion_context.Deriver.derived_item_loc ctxt)
+            "deriving %s: must specify global/local"
+            name;
+        f ~ctxt ast ~localize ~portable)
   | Some localize ->
     Deriving.Generator.V2.make
       Deriving.Args.(empty +> flag "portable")
@@ -17,8 +37,8 @@ let generator f ~explicit_localize =
 let deriver name (module M : S) ~explicit_localize =
   Deriving.add
     name
-    ~str_type_decl:(generator M.str_type_decl ~explicit_localize)
-    ~sig_type_decl:(generator M.sig_type_decl ~explicit_localize)
+    ~str_type_decl:(generator M.str_type_decl ~explicit_localize ~name)
+    ~sig_type_decl:(generator M.sig_type_decl ~explicit_localize ~name)
 ;;
 
 let compare = deriver "compare" (module Compare) ~explicit_localize:None
@@ -56,22 +76,32 @@ let replace_underscores_by_variables =
   map#core_type
 ;;
 
+let declare_maybe_raise_if_not_explicit name context pattern f ~explicit =
+  Extension.declare name context pattern (fun ~loc ~path a ->
+    if !require_explicit_locality && not explicit
+    then Location.raise_errorf ~loc "deriving %s: must specify global/local" name;
+    f ~loc ~path a)
+;;
+
 let () =
   [ ( "compare"
     , "compare_local"
     , "compare__local"
+    , "compare__global"
     , Compare.type_
     , Compare.core_type
     , Some Compare.pattern )
   ; ( "equal"
     , "equal_local"
     , "equal__local"
+    , "equal__global"
     , Equal.type_
     , Equal.core_type
     , Some Equal.pattern )
   ; ( "@compare.equal"
     , "@compare_local.equal"
     , "@compare.equal__local"
+    , "@compare.equal__global"
     , Equal.type_
     , Compare.equal_core_type
     , None )
@@ -82,66 +112,63 @@ let () =
            ( name
            , local_name
            , local_name_with_two_underscores_for_ppx_template
+           , global_name_with_two_underscores_for_ppx_template
            , type_
            , core_type
            , pattern )
          ->
-         let local_extension_types name =
+         let global_extension_types name ~explicit =
+           ( name
+           , type_ ~with_local:false
+           , core_type ~with_local:false
+           , Option.map pattern ~f:(fun pattern -> pattern ~with_local:false)
+           , explicit )
+         in
+         let local_extension_types name ~explicit =
            ( name
            , type_ ~with_local:true
            , core_type ~with_local:true
-           , Option.map pattern ~f:(fun pattern -> pattern ~with_local:true) )
+           , Option.map pattern ~f:(fun pattern -> pattern ~with_local:true)
+           , explicit )
          in
-         [ ( name
-           , type_ ~with_local:false
-           , core_type ~with_local:false
-           , Option.map pattern ~f:(fun pattern -> pattern ~with_local:false) )
-         ; local_extension_types local_name
-         ; local_extension_types local_name_with_two_underscores_for_ppx_template
+         [ global_extension_types name ~explicit:false
+         ; global_extension_types
+             global_name_with_two_underscores_for_ppx_template
+             ~explicit:true
+         ; local_extension_types local_name ~explicit:false
+         ; local_extension_types
+             local_name_with_two_underscores_for_ppx_template
+             ~explicit:true
          ])
-  |> List.iter ~f:(fun (name, type_, core_type, pattern) ->
+  |> List.iter ~f:(fun (name, type_, core_type, pattern, explicit) ->
     Driver.register_transformation
       (if String.is_prefix name ~prefix:"@" then String.drop_prefix name 1 else name)
       ~rules:
         (Context_free.Rule.extension
-           (Extension.declare
+           (declare_maybe_raise_if_not_explicit
               name
               Core_type
               Ast_pattern.(ptyp __)
               (fun ~loc ~path:_ ty ->
-                type_ ~hide:true ~loc (replace_underscores_by_variables ty)))
+                type_ ~hide:true ~loc (replace_underscores_by_variables ty))
+              ~explicit)
          :: Context_free.Rule.extension
-              (Extension.declare
+              (declare_maybe_raise_if_not_explicit
                  name
                  Expression
                  Ast_pattern.(ptyp __)
-                 (fun ~loc:_ ~path:_ ty -> core_type ty))
+                 (fun ~loc:_ ~path:_ ty -> core_type ty)
+                 ~explicit)
          ::
          (match pattern with
           | None -> []
           | Some pattern ->
             [ Context_free.Rule.extension
-                (Extension.declare
+                (declare_maybe_raise_if_not_explicit
                    name
                    Pattern
                    Ast_pattern.(ptyp __)
-                   (fun ~loc:_ ~path:_ ty ->
-                     match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
-                     | Ptyp_constr (id, _) -> pattern id
-                     | Ptyp_var _ ->
-                       Ast_builder.Default.ppat_extension
-                         ~loc:ty.ptyp_loc
-                         (Location.error_extensionf
-                            ~loc:ty.ptyp_loc
-                            "Type variables are disallowed here to emphasize that type \
-                             constraints don't work as expected. Instead, consider using \
-                             a locally abstract type.")
-                     | _ ->
-                       Ast_builder.Default.ppat_extension
-                         ~loc:ty.ptyp_loc
-                         (Location.error_extensionf
-                            ~loc:ty.ptyp_loc
-                            "Only type constructors are allowed here (e.g. [t], ['a t], \
-                             or [M(X).t]).")))
+                   (fun ~loc:_ ~path:_ ty -> pattern ty)
+                   ~explicit)
             ])))
 ;;
