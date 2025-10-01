@@ -19,6 +19,12 @@ let ptyp_arrow2 ~loc ~local_args arg1 arg2 res =
   else [%type: [%t arg1] -> [%t arg2] -> [%t res]]
 ;;
 
+let make_field_expr base field_name ~loc ~unboxed =
+  if unboxed
+  then Ppxlib_jane.Ast_builder.Default.pexp_unboxed_field base field_name ~loc
+  else pexp_field base field_name ~loc
+;;
+
 let has_global_modality ~modalities ~attrs ~mut =
   let explicit_modality () =
     (* An explicit [global] modality is present *)
@@ -102,6 +108,14 @@ module Make_attrs (Name : sig
       Ast_pattern.(pstr nil)
       ()
   ;;
+
+  let custom_core_type =
+    Attribute.declare
+      ("@" ^ Name.name ^ ".custom")
+      Attribute.Context.core_type
+      Ast_pattern.(single_expr_payload __)
+      Fn.id
+  ;;
 end
 
 module Compare_params : Params = struct
@@ -174,38 +188,66 @@ module Make (Params : Params) = struct
   module Attrs = Attrs
 
   let str_attributes =
-    [ Attribute.T Attrs.ignore_label_declaration; Attribute.T Attrs.ignore_core_type ]
+    [ Attribute.T Attrs.ignore_label_declaration
+    ; Attribute.T Attrs.ignore_core_type
+    ; Attribute.T Attrs.custom_core_type
+    ]
   ;;
 
-  let is_ignored_gen ~loc ~compare_attr ~equal_attr ast =
-    match kind, Attribute.get compare_attr ast, Attribute.get equal_attr ast with
-    | _, Some (), Some () | Compare, Some (), None | Equal, None, Some () -> true
-    | _, None, None -> false
-    | Compare, None, Some () ->
+  let get_attr ~loc ~compare_attr ~equal_attr ~attr_name ast =
+    let error ~present ~missing =
       Location.raise_errorf
         ~loc
-        "Cannot use [@@equal.ignore] with [@@@@deriving compare]."
-    | Equal, Some (), None ->
-      Location.raise_errorf ~loc "Cannot use [@@compare.ignore] with [@@@@deriving equal]"
+        "Using [@@%s.%s] without [@@%s.%s] is likely to lead to incompatible [compare] \
+         and [equal] functions."
+        present
+        attr_name
+        missing
+        attr_name
+    in
+    let value_compare =
+      Attribute.get compare_attr ast ~mark_as_seen:(Poly.equal kind Compare)
+    in
+    let value_equal =
+      Attribute.get equal_attr ast ~mark_as_seen:(Poly.equal kind Equal)
+    in
+    match kind, value_compare, value_equal with
+    | Compare, Some value, _ | Equal, _, Some value -> Some value
+    | _, None, None -> None
+    | Compare, None, Some _ -> error ~present:"equal" ~missing:"compare"
+    | Equal, Some _, None -> error ~present:"compare" ~missing:"equal"
   ;;
 
-  let core_type_is_ignored ty =
-    is_ignored_gen
+  let core_type_custom_implementation ty =
+    get_attr
       ~loc:ty.ptyp_loc
-      ~compare_attr:Compare_params.Attrs.ignore_core_type
-      ~equal_attr:Equal_params.Attrs.ignore_core_type
+      ~compare_attr:Compare_params.Attrs.custom_core_type
+      ~equal_attr:Equal_params.Attrs.custom_core_type
+      ~attr_name:"custom"
       ty
   ;;
 
+  let core_type_is_ignored ty =
+    get_attr
+      ~loc:ty.ptyp_loc
+      ~compare_attr:Compare_params.Attrs.ignore_core_type
+      ~equal_attr:Equal_params.Attrs.ignore_core_type
+      ~attr_name:"ignore"
+      ty
+    |> Option.is_some
+  ;;
+
   let label_is_ignored ld =
-    is_ignored_gen
+    get_attr
       ~loc:ld.pld_loc
       ~compare_attr:Compare_params.Attrs.ignore_label_declaration
       ~equal_attr:Equal_params.Attrs.ignore_label_declaration
+      ~attr_name:"ignore"
       ld
+    |> Option.is_some
   ;;
 
-  let with_tuple loc ~value ~ltys f =
+  let with_tuple loc ~value ~ltys ~unboxed f =
     (* generate
        let id_1, id_2, id_3, ... id_n = value in expr
        where expr is the result of (f [id_1, ty_1 ; id_2, ty_2; ...])
@@ -215,7 +257,10 @@ module Make (Params : Params) = struct
     in
     let pattern =
       let l = List.map names_types ~f:(fun (n, lbl, _) -> lbl, pvar ~loc n) in
-      Ppxlib_jane.Ast_builder.Default.ppat_tuple ~loc l Closed
+      Ppxlib_jane.Ast_builder.Default.(if unboxed then ppat_unboxed_tuple else ppat_tuple)
+        ~loc
+        l
+        Closed
     in
     let e = f (List.map names_types ~f:(fun (n, _, t) -> evar ~loc n, t)) in
     let binding = value_binding ~loc ~pat:pattern ~expr:value in
@@ -282,9 +327,9 @@ module Make (Params : Params) = struct
       args
       ~f:(function_name ~with_local)
 
-  and compare_of_tuple ~hide ~with_local loc ltys value1 value2 =
-    with_tuple loc ~value:value1 ~ltys (fun elems1 ->
-      with_tuple loc ~value:value2 ~ltys (fun elems2 ->
+  and compare_of_tuple ~hide ~with_local ~unboxed loc ltys value1 value2 =
+    with_tuple loc ~value:value1 ~ltys ~unboxed (fun elems1 ->
+      with_tuple loc ~value:value2 ~ltys ~unboxed (fun elems2 ->
         let exprs =
           List.map2 elems1 elems2 ~f:(fun (v1, t) (v2, _) ->
             compare_of_ty ~hide ~with_local t v1 v2)
@@ -399,6 +444,7 @@ module Make (Params : Params) = struct
                  (compare_of_record_no_phys_equal
                     ~hide
                     ~with_local
+                    ~unboxed:false
                     loc
                     lds
                     (evar ~loc value1)
@@ -506,40 +552,52 @@ module Make (Params : Params) = struct
     if core_type_is_ignored ty
     then compare_ignore ~loc value1 value2
     else (
-      match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
-      | Ptyp_constr (constructor, args) ->
-        compare_applied ~hide ~with_local ~constructor ~args value1 value2
-      | Ptyp_tuple labeled_tys ->
-        compare_of_tuple ~hide ~with_local loc labeled_tys value1 value2
-      | Ptyp_var (name, None) -> eapply ~loc (evar ~loc (tp_name name)) [ value1; value2 ]
-      | Ptyp_arrow _ ->
-        Location.raise_errorf ~loc "ppx_compare: Functions can not be compared."
-      | Ptyp_variant (row_fields, Closed, None) ->
-        compare_variant ~hide ~with_local loc row_fields value1 value2
-      | Ptyp_variant (row_fields, Closed, Some _) ->
-        (* We can always cast something of the form [< `A ... `Z > `A ...] to the
+      match core_type_custom_implementation ty with
+      | Some custom_implementation -> eapply ~loc custom_implementation [ value1; value2 ]
+      | None ->
+        (match Ppxlib_jane.Shim.Core_type_desc.of_parsetree ty.ptyp_desc with
+         | Ptyp_constr (constructor, args) ->
+           compare_applied ~hide ~with_local ~constructor ~args value1 value2
+         | Ptyp_tuple labeled_tys ->
+           compare_of_tuple ~hide ~with_local ~unboxed:false loc labeled_tys value1 value2
+         | Ptyp_unboxed_tuple labeled_tys ->
+           compare_of_tuple ~hide ~with_local ~unboxed:true loc labeled_tys value1 value2
+         | Ptyp_var (name, None) ->
+           eapply ~loc (evar ~loc (tp_name name)) [ value1; value2 ]
+         | Ptyp_arrow _ ->
+           Location.raise_errorf ~loc "ppx_compare: Functions can not be compared."
+         | Ptyp_variant (row_fields, Closed, None) ->
+           compare_variant ~hide ~with_local loc row_fields value1 value2
+         | Ptyp_variant (row_fields, Closed, Some _) ->
+           (* We can always cast something of the form [< `A ... `Z > `A ...] to the
               most general case [`A ... `Z]
 
               Then the function signature is
               [< `A ... `Z > `A ...] -> [< `A ... `Z > `A ...] -> int_or_bool
               and the two inputs don't even have to be the same type.
-        *)
-        let v1 = gen_symbol ~prefix:"v1" ()
-        and v2 = gen_symbol ~prefix:"v2" () in
-        let ty_without_constraints =
-          { ty with ptyp_desc = Ptyp_variant (row_fields, Closed, None) }
-        in
-        [%expr
-          let [%p pvar ~loc v1] = ([%e value1] :> [%t ty_without_constraints])
-          and [%p pvar ~loc v2] = ([%e value2] :> [%t ty_without_constraints]) in
-          [%e
-            compare_variant ~hide ~with_local loc row_fields (evar ~loc v1) (evar ~loc v2)]]
-      | Ptyp_any None -> compare_ignore ~loc value1 value2
-      | Ptyp_var (_, Some _) | Ptyp_any (Some _) ->
-        Location.raise_errorf
-          ~loc
-          "Layout annotations are not currently supported with [ppx_compare]."
-      | _ -> Location.raise_errorf ~loc "ppx_compare: unknown type")
+           *)
+           let v1 = gen_symbol ~prefix:"v1" ()
+           and v2 = gen_symbol ~prefix:"v2" () in
+           let ty_without_constraints =
+             { ty with ptyp_desc = Ptyp_variant (row_fields, Closed, None) }
+           in
+           [%expr
+             let [%p pvar ~loc v1] = ([%e value1] :> [%t ty_without_constraints])
+             and [%p pvar ~loc v2] = ([%e value2] :> [%t ty_without_constraints]) in
+             [%e
+               compare_variant
+                 ~hide
+                 ~with_local
+                 loc
+                 row_fields
+                 (evar ~loc v1)
+                 (evar ~loc v2)]]
+         | Ptyp_any None -> compare_ignore ~loc value1 value2
+         | Ptyp_var (_, Some _) | Ptyp_any (Some _) ->
+           Location.raise_errorf
+             ~loc
+             "Layout annotations are not currently supported with [ppx_compare]."
+         | _ -> Location.raise_errorf ~loc "ppx_compare: unknown type"))
 
   and compare_of_ty_fun ~hide ~with_local ~type_constraint ty =
     let loc = { ty.ptyp_loc with loc_ghost = true } in
@@ -557,7 +615,7 @@ module Make (Params : Params) = struct
     [%expr
       fun [%p mk_pat a] [%p do_hide Merlin_helpers.hide_pattern (mk_pat b)] -> [%e body]]
 
-  and compare_of_record_no_phys_equal ~hide ~with_local loc lds value1 value2 =
+  and compare_of_record_no_phys_equal ~hide ~with_local loc lds value1 value2 ~unboxed =
     let is_evar = function
       | { pexp_desc = Pexp_ident _; _ } -> true
       | _ -> false
@@ -579,26 +637,21 @@ module Make (Params : Params) = struct
                    ~attrs:ld.pld_attributes
                    ~mut:(Some ld.pld_mutable)))
         ld.pld_type
-        (pexp_field ~loc value1 label)
-        (pexp_field ~loc value2 label))
+        (make_field_expr ~unboxed ~loc value1 label)
+        (make_field_expr ~unboxed ~loc value2 label))
     |> chain_if ~loc
   ;;
 
   let compare_of_record ~hide ~with_local loc lds value1 value2 =
-    compare_of_record_no_phys_equal ~hide ~with_local loc lds value1 value2
+    compare_of_record_no_phys_equal ~hide ~with_local loc lds value1 value2 ~unboxed:false
     |> phys_equal_first value1 value2
   ;;
 
   let compare_abstract loc type_name v_a v_b = abstract ~loc ~type_name v_a v_b
 
   let scheme_of_td ~hide ~with_local td =
-    let loc = td.ptype_loc in
-    let type_ = combinator_type_of_type_declaration td ~f:(type_ ~hide ~with_local) in
-    match td.ptype_params with
-    | [] -> type_
-    | l ->
-      let vars = List.map l ~f:Ppxlib_jane.get_type_param_name_and_jkind in
-      Ppxlib_jane.Ast_builder.Default.ptyp_poly ~loc vars type_
+    Ppx_helpers.combinator_type_of_type_declaration td ~f:(type_ ~hide ~with_local)
+    |> Ppx_helpers.Polytype.to_core_type
   ;;
 
   let compare_of_td ~hide ~with_local ~portable td ~rec_flag =
@@ -611,10 +664,8 @@ module Make (Params : Params) = struct
       match Ppxlib_jane.Shim.Type_kind.of_parsetree td.ptype_kind with
       | Ptype_variant cds -> compare_sum ~hide ~with_local loc cds v_a v_b
       | Ptype_record lds -> compare_of_record ~hide ~with_local loc lds v_a v_b
-      | Ptype_record_unboxed_product _ ->
-        Location.raise_errorf
-          ~loc
-          "ppx_compare: unboxed record types are not yet supported"
+      | Ptype_record_unboxed_product lds ->
+        compare_of_record_no_phys_equal ~hide ~with_local ~unboxed:true loc lds v_a v_b
       | Ptype_open ->
         Location.raise_errorf ~loc "ppx_compare: open types are not yet supported"
       | Ptype_abstract ->
@@ -749,14 +800,8 @@ module Make (Params : Params) = struct
       let generate ~with_local =
         let loc = td.ptype_loc in
         let compare_of =
-          combinator_type_of_type_declaration td ~f:(type_ ~hide ~with_local)
-        in
-        let compare_of =
-          match td.ptype_params with
-          | [] -> compare_of
-          | l ->
-            let vars = List.map l ~f:Ppxlib_jane.get_type_param_name_and_jkind in
-            Ppxlib_jane.Ast_builder.Default.ptyp_poly ~loc vars compare_of
+          Ppx_helpers.combinator_type_of_type_declaration td ~f:(type_ ~hide ~with_local)
+          |> Ppx_helpers.Polytype.to_core_type
         in
         let name = function_name ~with_local td.ptype_name.txt in
         psig_value

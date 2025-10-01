@@ -893,3 +893,63 @@ end = struct
     type 'a with_functor = { x : 'a Functor(T).t } [@@deriving compare]
   end
 end
+
+module Custom_attributes = struct
+  type t =
+    { x :
+        (string
+        [@compare.custom
+          fun x y ->
+            match x, y with
+            | "foo", "foo" -> 0
+            | "foo", _ -> -1
+            | _, "foo" -> 1
+            | _, _ -> 0]
+        [@equal.custom
+          fun x y ->
+            match x, y with
+            | "bar", _ | _, "bar" -> true
+            | _, _ -> true])
+    }
+  [@@deriving_inline compare ~localize, equal]
+
+  let _ = fun (_ : t) -> ()
+
+  let compare__local =
+    (fun a__1655_ b__1656_ ->
+       if Stdlib.( == ) a__1655_ b__1656_
+       then 0
+       else
+         (fun x y ->
+           match x, y with
+           | "foo", "foo" -> 0
+           | "foo", _ -> -1
+           | _, "foo" -> 1
+           | _, _ -> 0)
+           a__1655_.x
+           b__1656_.x
+     : t -> t -> int)
+  ;;
+
+  let _ = compare__local
+  let compare = (fun a b -> compare__local a b : t -> t -> int)
+  let _ = compare
+
+  let equal =
+    (fun a__1657_ b__1658_ ->
+       if Stdlib.( == ) a__1657_ b__1658_
+       then true
+       else
+         (fun x y ->
+           match x, y with
+           | "bar", _ | _, "bar" -> true
+           | _, _ -> true)
+           a__1657_.x
+           b__1658_.x
+     : t -> t -> bool)
+  ;;
+
+  let _ = equal
+
+  [@@@end]
+end

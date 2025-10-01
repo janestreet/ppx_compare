@@ -1,15 +1,17 @@
 open Ppx_compare_lib.Builtin
 
+(* Warning when a modifier attribute is present for only one of [compare] or [equal]. *)
+
 type t =
   { x : int [@compare.ignore]
   ; y : int
   }
-[@@deriving equal]
+[@@deriving compare, equal]
 
 [%%expect
   {|
 Line _, characters _-_:
-Error: Cannot use [@compare.ignore] with [@@deriving equal]
+Error: Using [@compare.ignore] without [@equal.ignore] is likely to lead to incompatible [compare] and [equal] functions.
 |}]
 
 type t =
@@ -21,7 +23,155 @@ type t =
 [%%expect
   {|
 Line _, characters _-_:
-Error: Cannot use [@equal.ignore] with [@@deriving compare].
+Error: Using [@equal.ignore] without [@compare.ignore] is likely to lead to incompatible [compare] and [equal] functions.
+|}]
+
+type t =
+  { x : (int[@compare.custom compare_int])
+  ; y : int
+  }
+[@@deriving compare, equal]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Using [@compare.custom] without [@equal.custom] is likely to lead to incompatible [compare] and [equal] functions.
+|}]
+
+type t =
+  { x : (int[@compare.custom compare_int])
+  ; y : int
+  }
+[@@deriving compare]
+
+[%%expect {| |}]
+
+type t =
+  { x : (int[@equal.custom equal_int])
+  ; y : int
+  }
+[@@deriving compare, equal]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Using [@equal.custom] without [@compare.custom] is likely to lead to incompatible [compare] and [equal] functions.
+|}]
+
+type t =
+  { x : (int[@equal.custom equal_int])
+  ; y : int
+  }
+[@@deriving equal]
+
+[%%expect {| |}]
+
+type t =
+  { x : (int[@compare.custom fun _ _ -> 0])
+  ; y : int
+  }
+[@@deriving compare, hash]
+
+[%%expect
+  {|
+Line _:
+Error: Using [@compare.custom] without [@hash.custom] is not allowed, because it would be easy violate the invariant that [compare x y = 0] implies [hash x = hash y]. You should provide a custom comparison function that upholds this invariant.
+|}]
+
+(* Unused attributes warnings work. *)
+
+type t =
+  { x : int [@compare.ignore] [@equal.ignore]
+  ; y : int
+  }
+[@@deriving compare]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Attribute `equal.ignore' was not used
+|}]
+
+type t =
+  { x : int [@compare.ignore] [@equal.ignore]
+  ; y : int
+  }
+[@@deriving equal]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Attribute `compare.ignore' was not used
+|}]
+
+type t =
+  { x : (int[@compare.custom compare_int] [@equal.custom equal_int])
+  ; y : int
+  }
+[@@deriving compare]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Attribute `equal.custom' was not used
+|}]
+
+type t =
+  { x : (int[@compare.custom compare_int] [@equal.custom equal_int])
+  ; y : int
+  }
+[@@deriving equal]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Attribute `compare.custom' was not used
+|}]
+
+(* [custom] attribute on wrong level warns *)
+
+type t =
+  { x : int [@compare.custom compare_int] [@equal.custom equal_int]
+  ; y : int
+  }
+[@@deriving compare, equal]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Attribute `compare.custom' was not used.
+       Hint: `compare.custom' is available for core types but is used here in
+       the
+       context of a label declaration.
+       Did you put it at the wrong level?
+|}]
+
+(* Warn when both ignore and custom are present *)
+
+type t =
+  { x : (int[@compare.ignore] [@compare.custom fun _ _ -> 0])
+  ; y : int
+  }
+[@@deriving compare]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Attribute `compare.custom' was not used
+|}]
+
+(* [custom] attributes must be qualified *)
+
+type t =
+  { x : (int[@custom])
+  ; y : int
+  }
+[@@deriving compare, equal]
+
+[%%expect
+  {|
+Line _, characters _-_:
+Error: Attribute `custom' was not used
 |}]
 
 (* The following ones are OK: *)
@@ -77,5 +227,7 @@ type t =
 [%%expect
   {|
 Line _, characters _-_:
-Error: The value Non_portable.compare is nonportable, so cannot be used inside a function that is portable.
+Error: The value Non_portable.compare is nonportable
+       but is expected to be portable because it is used inside a function
+       which is expected to be portable.
 |}]

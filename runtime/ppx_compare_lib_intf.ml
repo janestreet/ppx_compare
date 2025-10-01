@@ -113,9 +113,9 @@ module type Ppx_compare_lib = sig
     val compare_array : 'a. ('a compare[@mode l]) -> ('a array compare[@mode l])
     [@@kind k = (float64, bits32, bits64, word, immediate, immediate64, value)]
 
-    val compare_list : ('a compare[@mode l]) -> ('a list compare[@mode l])
-    val compare_option : ('a compare[@mode l]) -> ('a option compare[@mode l])
-    val compare_ref : ('a compare[@mode l]) -> ('a ref compare[@mode l])
+    val compare_list : 'a. ('a compare[@mode l]) -> ('a list compare[@mode l])
+    val compare_option : 'a. ('a compare[@mode l]) -> ('a option compare[@mode l])
+    val compare_ref : 'a. ('a compare[@mode l]) -> ('a ref compare[@mode l])
     val equal_bool : (bool equal[@mode l]) [@@zero_alloc arity 2]
     val equal_char : (char equal[@mode l]) [@@zero_alloc arity 2]
     val equal_float : (float equal[@mode l]) [@@zero_alloc arity 2]
@@ -130,8 +130,8 @@ module type Ppx_compare_lib = sig
     val equal_array : 'a. ('a equal[@mode l]) -> ('a array equal[@mode l])
     [@@kind k = (float64, bits32, bits64, word, immediate, immediate64, value)]
 
-    val equal_list : ('a equal[@mode l]) -> ('a list equal[@mode l])
-    val equal_option : ('a equal[@mode l]) -> ('a option equal[@mode l])
-    val equal_ref : ('a equal[@mode l]) -> ('a ref equal[@mode l])]
+    val equal_list : 'a. ('a equal[@mode l]) -> ('a list equal[@mode l])
+    val equal_option : 'a. ('a equal[@mode l]) -> ('a option equal[@mode l])
+    val equal_ref : 'a. ('a equal[@mode l]) -> ('a ref equal[@mode l])]
   end
 end
