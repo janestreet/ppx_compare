@@ -173,3 +173,33 @@ module%template S2_derived : S2_with_compare_and_equal = struct
   [@@deriving compare ~localize, equal ~localize]
   [@@kind ka = (value, bits64, float64), kb = (value, bits64, float64)]
 end
+
+(* Demonstrate that [[%equal: _] [@mode m]] is equivalent to [@@deriving equal [@mode
+   local]] for [m = (global, local)] and similary for [%compare] and [%compare.equal].
+*)
+module%template _ : sig
+  type t [@@deriving_inline (compare [@mode local]), (equal [@mode local])]
+
+  include sig
+    [@@@ocaml.warning "-32"]
+
+    include Ppx_compare_lib.Comparable.S with type t := t
+    include Ppx_compare_lib.Comparable.S__local with type t := t
+    include Ppx_compare_lib.Equal.S with type t := t
+    include Ppx_compare_lib.Equal.S__local with type t := t
+  end
+  [@@ocaml.doc "@inline"]
+
+  [@@@end]
+
+  val%template equal_via_compare : t @ m -> t @ m -> bool [@@mode m = (global, local)]
+end = struct
+  type t = string
+
+  [%%template
+  [@@@mode.default m = (global, local)]
+
+  let compare = ([%compare: string] [@mode m])
+  let equal = ([%equal: string] [@mode m])
+  let equal_via_compare = ([%compare.equal: string] [@mode m])]
+end

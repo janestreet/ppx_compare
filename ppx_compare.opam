@@ -11,9 +11,12 @@ build: [
 ]
 depends: [
   "ocaml" {>= "5.1.0"}
+  "ppx_helpers"
+  "ppx_shorthand"
+  "ppx_template"
   "ppxlib_jane"
-  "dune"        {>= "3.17.0"}
-  "ppxlib"      {= "0.33.0+ox"}
+  "dune"          {>= "3.17.0"}
+  "ppxlib"        {= "0.33.0+ox"}
 ]
 available: arch != "arm32" & arch != "x86_32"
 synopsis: "Generation of comparison functions from types"
