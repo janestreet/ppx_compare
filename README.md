@@ -14,9 +14,10 @@ more safety by making sure that you only compare comparable values.
 Syntax
 ------
 
-Type definitions: `[@@deriving compare, equal]`
-Expressions: `[%compare: TYPE]`, `[%equal: TYPE]` and `[%compare.equal: TYPE]`
-Types, record fields: `[@compare.ignore]`, `[@equal.ignore]`
+- Type definitions: `[@@deriving compare, equal]`
+- Expressions: `[%compare: TYPE]`, `[%equal: TYPE]` and `[%compare.equal: TYPE]`
+- Types, record fields: `[@compare.ignore]`, `[@equal.ignore]`
+- Types: `[@compare.custom CUSTOM_IMPLEMENTATION]`, `[@equal.custom CUSTOM_IMPLEMENTATION]`
 
 Basic usage
 -----------
@@ -143,6 +144,22 @@ can be abbreviated:
     type t =
       { a : float [@compare.ignore]
       ; b : string
+      }
+    [@@deriving compare]
+```
+
+
+Overriding implementation for parts of types
+------------------------------------------
+
+You can use the `[@compare.custom EXPR]` and `[@equal.custom EXPR]` attributes
+to provide a custom implementation for part of a type:
+
+
+```ocaml
+    type t =
+      { a : int
+      ; b : (string[@compare.custom (Comparable.lift [%compare: int] ~f:String.length)]) list
       }
     [@@deriving compare]
 ```

@@ -5,5 +5,5 @@
   (pps ppxlib ppx_compare ppx_inline_test ppx_template)))
 
 (alias
- (name DEFAULT)
+ (name default)
  (deps test.ml.pp))

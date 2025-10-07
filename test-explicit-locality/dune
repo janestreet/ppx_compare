@@ -1,0 +1,5 @@
+(library
+ (name comparelib_explicit_locality_test)
+ (libraries base)
+ (preprocess
+  (pps ppx_jane -compare-require-explicit-locality ppx_template)))

@@ -535,8 +535,8 @@ module Ignoring = struct
          let t__1397_, t__1398_ = a__1395_.a in
          let t__1399_, t__1400_ = b__1396_.a in
          match
-           let (_ : _) = t__1397_
-           and (_ : _) = t__1399_ in
+           let _ : _ = t__1397_
+           and _ : _ = t__1399_ in
            0
          with
          | 0 -> compare_string t__1398_ t__1400_
@@ -554,8 +554,8 @@ module Ignoring = struct
          let t__1403_, t__1404_ = a__1401_.a in
          let t__1405_, t__1406_ = b__1402_.a in
          Stdlib.( && )
-           (let (_ : _) = t__1403_
-            and (_ : _) = t__1405_ in
+           (let _ : _ = t__1403_
+            and _ : _ = t__1405_ in
             true)
            (equal_string t__1404_ t__1406_))
      : t -> t -> bool)
@@ -585,8 +585,8 @@ module Ignoring_with_type = struct
        else (
          match compare_int a__1407_.a b__1408_.a with
          | 0 ->
-           let (_ : _) = a__1407_.b
-           and (_ : _) = b__1408_.b in
+           let _ : _ = a__1407_.b
+           and _ : _ = b__1408_.b in
            0
          | n -> n)
      : t -> t -> int)
@@ -602,6 +602,23 @@ module Enum_optim = struct
     | A
     | B
     | C
+  [@@deriving_inline compare, equal]
+
+  let _ = fun (_ : t) -> ()
+  let compare = (Stdlib.compare : t -> t -> int)
+  let _ = compare
+  let equal = (Stdlib.( = ) : t -> t -> bool)
+  let _ = equal
+
+  [@@@end]
+end
+
+module Poly_enum_optim = struct
+  type t =
+    [ `A
+    | `B
+    | `C
+    ]
   [@@deriving_inline compare, equal]
 
   let _ = fun (_ : t) -> ()
@@ -686,23 +703,23 @@ end = struct
   let _ = fun (_ : t) -> ()
 
   let rec compare__local =
-    (fun a__1541_ b__1542_ ->
-       if Stdlib.( == ) a__1541_ b__1542_
+    (fun a__1545_ b__1546_ ->
+       if Stdlib.( == ) a__1545_ b__1546_
        then 0
        else (
-         match a__1541_, b__1542_ with
-         | Int _a__1543_, Int _b__1544_ -> compare_int__local _a__1543_ _b__1544_
+         match a__1545_, b__1546_ with
+         | Int _a__1547_, Int _b__1548_ -> compare_int__local _a__1547_ _b__1548_
          | Int _, _ -> -1
          | _, Int _ -> 1
-         | Add (_a__1545_, _a__1547_), Add (_b__1546_, _b__1548_) ->
-           (match compare__local _a__1545_ _b__1546_ with
-            | 0 -> compare__local _a__1547_ _b__1548_
+         | Add (_a__1549_, _a__1551_), Add (_b__1550_, _b__1552_) ->
+           (match compare__local _a__1549_ _b__1550_ with
+            | 0 -> compare__local _a__1551_ _b__1552_
             | n -> n)
          | Add _, _ -> -1
          | _, Add _ -> 1
-         | Sub (_a__1549_, _a__1551_), Sub (_b__1550_, _b__1552_) ->
-           (match compare__local _a__1549_ _b__1550_ with
-            | 0 -> compare__local _a__1551_ _b__1552_
+         | Sub (_a__1553_, _a__1555_), Sub (_b__1554_, _b__1556_) ->
+           (match compare__local _a__1553_ _b__1554_ with
+            | 0 -> compare__local _a__1555_ _b__1556_
             | n -> n))
      : local_ t -> local_ t -> int)
 
@@ -712,24 +729,24 @@ end = struct
   and _ = compare
 
   let rec equal__local =
-    (fun a__1553_ b__1554_ ->
-       if Stdlib.( == ) a__1553_ b__1554_
+    (fun a__1557_ b__1558_ ->
+       if Stdlib.( == ) a__1557_ b__1558_
        then true
        else (
-         match a__1553_, b__1554_ with
-         | Int _a__1555_, Int _b__1556_ -> equal_int__local _a__1555_ _b__1556_
+         match a__1557_, b__1558_ with
+         | Int _a__1559_, Int _b__1560_ -> equal_int__local _a__1559_ _b__1560_
          | Int _, _ -> false
          | _, Int _ -> false
-         | Add (_a__1557_, _a__1559_), Add (_b__1558_, _b__1560_) ->
-           Stdlib.( && )
-             (equal__local _a__1557_ _b__1558_)
-             (equal__local _a__1559_ _b__1560_)
-         | Add _, _ -> false
-         | _, Add _ -> false
-         | Sub (_a__1561_, _a__1563_), Sub (_b__1562_, _b__1564_) ->
+         | Add (_a__1561_, _a__1563_), Add (_b__1562_, _b__1564_) ->
            Stdlib.( && )
              (equal__local _a__1561_ _b__1562_)
-             (equal__local _a__1563_ _b__1564_))
+             (equal__local _a__1563_ _b__1564_)
+         | Add _, _ -> false
+         | _, Add _ -> false
+         | Sub (_a__1565_, _a__1567_), Sub (_b__1566_, _b__1568_) ->
+           Stdlib.( && )
+             (equal__local _a__1565_ _b__1566_)
+             (equal__local _a__1567_ _b__1568_))
      : local_ t -> local_ t -> bool)
 
   and equal = (fun a b -> equal__local a b : t -> t -> bool)
@@ -738,6 +755,40 @@ end = struct
   and _ = equal
 
   [@@@end]
+end
+
+module Test__global_exists : sig
+  type t [@@deriving compare__global, equal__global]
+end = struct
+  type t [@@deriving compare__global, equal__global]
+end
+
+module Test__global_extensions_exists : sig
+  type t [@@deriving compare__global, equal__global]
+
+  val equal_via_compare : t -> t -> bool
+end = struct
+  type t = int
+
+  let compare = [%compare__global: int]
+  let equal = [%equal__global: int]
+  let equal_via_compare = [%compare.equal__global: int]
+end
+
+module Test__local_exists : sig
+  type t [@@deriving compare ~localize, equal ~localize]
+
+  val equal_via_compare : t -> t -> bool
+  val equal_via_compare__local : t @ local -> t @ local -> bool
+end = struct
+  type t = string
+
+  let compare = [%compare: string]
+  let compare__local = [%compare__local: string]
+  let equal = [%equal: string]
+  let equal__local = [%equal__local: string]
+  let equal_via_compare = [%compare.equal: string]
+  let equal_via_compare__local = [%compare.equal__local: string]
 end
 
 module Polymorphic_variants_fully_poly_inputs : sig
@@ -760,4 +811,152 @@ end = struct
     let compare = [%compare: [< `A | `B | `C of int > `A ]]
     let equal = [%compare.equal: [< `A | `B | `C of int > `A ]]
   end
+end
+
+module Define_comparison_manually : sig
+  module Non_parameterized : sig
+    type t [@@deriving compare]
+
+    module type Comparable = sig
+      type t [@@deriving compare]
+    end
+
+    module Functor (M : Comparable) : Comparable with type t = t
+    module T : Comparable with type t = t
+
+    type with_functor = { x : Functor(T).t } [@@deriving compare]
+  end
+
+  module Parameterized : sig
+    type 'a t [@@deriving compare]
+
+    module type Comparable = sig
+      type 'a t [@@deriving compare]
+    end
+
+    module Functor (M : Comparable) : Comparable with type 'a t = 'a t
+    module T : Comparable with type 'a t = 'a t
+
+    type 'a with_functor = { x : 'a Functor(T).t } [@@deriving compare]
+  end
+end = struct
+  module Non_parameterized = struct
+    type t = int list
+
+    let [%compare: t] = fun x y -> [%compare: int] (List.length x) (List.length y)
+
+    module type Comparable = sig
+      type t [@@deriving compare]
+    end
+
+    module T = struct
+      type nonrec t = t
+
+      let [%compare: t] = [%compare: t]
+    end
+
+    module Functor (M : Comparable) = struct
+      module _ = M
+
+      type nonrec t = t [@@deriving compare]
+    end
+
+    let [%compare: Functor(T).t] =
+      fun (module M : Comparable) ->
+      let module _ = M in
+      [%compare: t]
+    ;;
+
+    type with_functor = { x : Functor(T).t } [@@deriving compare]
+  end
+
+  module Parameterized = struct
+    type 'a t = 'a list
+
+    let [%compare: 'a t] = fun [%compare: 'a] -> [%compare: 'a list]
+
+    module type Comparable = sig
+      type 'a t [@@deriving compare]
+    end
+
+    module T = struct
+      type nonrec 'a t = 'a t
+
+      let [%compare: 'a t] = fun (type a) [%compare: a] -> [%compare: a t]
+    end
+
+    module Functor (M : Comparable) = struct
+      module _ = M
+
+      type nonrec 'a t = 'a t [@@deriving compare]
+    end
+
+    let [%compare: 'a Functor(T).t] =
+      fun (module M : Comparable) (type a) compare_a ->
+      let module _ = M in
+      [%compare: a t]
+    ;;
+
+    type 'a with_functor = { x : 'a Functor(T).t } [@@deriving compare]
+  end
+end
+
+module Custom_attributes = struct
+  type t =
+    { x :
+        (string
+        [@compare.custom
+          fun (x @ local) (y @ local) ->
+            match x, y with
+            | "foo", "foo" -> 0
+            | "foo", _ -> -1
+            | _, "foo" -> 1
+            | _, _ -> 0]
+        [@equal.custom
+          fun x y ->
+            match x, y with
+            | "bar", _ | _, "bar" -> true
+            | _, _ -> true])
+    }
+  [@@deriving_inline compare ~localize, equal]
+
+  let _ = fun (_ : t) -> ()
+
+  let compare__local =
+    (fun a__1655_ b__1656_ ->
+       if Stdlib.( == ) a__1655_ b__1656_
+       then 0
+       else
+         (fun (local_ x) (local_ y) ->
+           match x, y with
+           | "foo", "foo" -> 0
+           | "foo", _ -> -1
+           | _, "foo" -> 1
+           | _, _ -> 0)
+           a__1655_.x
+           b__1656_.x
+     : local_ t -> local_ t -> int)
+  ;;
+
+  let _ = compare__local
+  let compare = (fun a b -> compare__local a b : t -> t -> int)
+  let _ = compare
+
+  let equal =
+    (fun a__1657_ b__1658_ ->
+       if Stdlib.( == ) a__1657_ b__1658_
+       then true
+       else
+         (fun x y ->
+           match x, y with
+           | "bar", _ | _, "bar" -> true
+           | _, _ -> true)
+           a__1657_.x
+           b__1658_.x
+     : t -> t -> bool)
+  ;;
+
+  let _ = equal
+
+  [@@@end]
 end
