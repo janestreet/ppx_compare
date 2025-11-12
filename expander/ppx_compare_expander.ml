@@ -29,7 +29,7 @@ let has_global_modality ~modalities ~attrs ~mut =
   let explicit_modality () =
     (* An explicit [global] modality is present *)
     List.exists modalities ~f:(function
-      | Ppxlib_jane.Modality "global" -> true
+      | { txt = Ppxlib_jane.Modality "global"; _ } -> true
       | _ -> false)
   in
   let crosses_locality () =
@@ -810,7 +810,8 @@ module Make (Params : Params) = struct
              ~loc
              ~name:{ td.ptype_name with txt = name }
              ~type_:compare_of
-             ~modalities:(if portable then [ Ppxlib_jane.Modality "portable" ] else [])
+             ~modalities:
+               (if portable then Ppxlib_jane.Shim.Modalities.portable ~loc else [])
              ~prim:[])
       in
       if localize

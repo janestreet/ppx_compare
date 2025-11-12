@@ -113,7 +113,7 @@ module type Ppx_compare_lib = sig @@ portable
     val compare_unit : (unit compare[@mode l]) [@@zero_alloc arity 2]
 
     val compare_array : ('a : k). ('a compare[@mode l]) -> ('a array compare[@mode l])
-    [@@kind k = (float64, bits32, bits64, word, immediate, immediate64, value)]
+    [@@kind k = base_with_imm]
 
     val compare_list
       : ('a : value_or_null).
@@ -139,7 +139,7 @@ module type Ppx_compare_lib = sig @@ portable
     val equal_unit : (unit equal[@mode l]) [@@zero_alloc arity 2]
 
     val equal_array : ('a : k). ('a equal[@mode l]) -> ('a array equal[@mode l])
-    [@@kind k = (float64, bits32, bits64, word, immediate, immediate64, value)]
+    [@@kind k = base_with_imm]
 
     val equal_list : ('a : value_or_null). ('a equal[@mode l]) -> ('a list equal[@mode l])
 

@@ -76,7 +76,7 @@ module Builtin = struct
   ;;]
 
   [%%template
-  [@@@kind.default k = (float64, bits32, bits64, word, immediate, immediate64, value)]
+  [@@@kind.default k = base_with_imm]
 
   let[@mode local] compare_array
     (type a : k)
@@ -142,7 +142,7 @@ module Builtin = struct
   ;;]
 
   [%%template
-  [@@@kind.default k = (float64, bits32, bits64, word, immediate, immediate64, value)]
+  [@@@kind.default k = base_with_imm]
 
   let[@mode local] equal_array
     (type a : k)
