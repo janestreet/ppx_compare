@@ -1,7 +1,7 @@
-(* Generated code should depend on the environment in scope as little as possible.
-   E.g. rather than [foo = []] do [match foo with [] ->], to eliminate the use of [=].  It
-   is especially important to not use polymorphic comparisons, since we are moving more
-   and more to code that doesn't have them in scope. *)
+(* Generated code should depend on the environment in scope as little as possible. E.g.
+   rather than [foo = []] do [match foo with [] ->], to eliminate the use of [=]. It is
+   especially important to not use polymorphic comparisons, since we are moving more and
+   more to code that doesn't have them in scope. *)
 
 (* Note: I am introducing a few unnecessary explicit closures, (not all of them some are
    unnecessary due to the value restriction).
@@ -248,9 +248,8 @@ module Make (Params : Params) = struct
   ;;
 
   let with_tuple loc ~value ~ltys ~unboxed f =
-    (* generate
-       let id_1, id_2, id_3, ... id_n = value in expr
-       where expr is the result of (f [id_1, ty_1 ; id_2, ty_2; ...])
+    (* generate let id_1, id_2, id_3, ... id_n = value in expr where expr is the result of
+       (f [id_1, ty_1 ; id_2, ty_2; ...])
     *)
     let names_types =
       List.map ltys ~f:(fun (lbl, t) -> gen_symbol ~prefix:"t" (), lbl, t)
@@ -372,12 +371,10 @@ module Make (Params : Params) = struct
                  ])
             ~rhs:body
         | Rinherit { ptyp_desc = Ptyp_constr (id, args); _ } ->
-          (* quite sadly, this code doesn't handle:
-           type 'a id = 'a with compare
-           type t = [ `a | [ `b ] id ] with compare
-           because it will generate a pattern #id, when id is not even a polymorphic
-           variant in the first place.
-           The culprit is caml though, since it only allows #id but not #([`b] id)
+          (* quite sadly, this code doesn't handle: type 'a id = 'a with compare type t =
+             [ `a | [ `b ] id ] with compare because it will generate a pattern #id, when
+             id is not even a polymorphic variant in the first place. The culprit is caml
+             though, since it only allows #id but not #([`b] id)
           *)
           let v1 = gen_symbol ~prefix:"_left" ()
           and v2 = gen_symbol ~prefix:"_right" () in
@@ -411,8 +408,8 @@ module Make (Params : Params) = struct
             ~loc
             matched
             (l
-             @ (* Providing we didn't screw up badly we now know that the tags of the variants
-                are different. We let pervasive do its magic. *)
+             @ (* Providing we didn't screw up badly we now know that the tags of the
+                  variants are different. We let pervasive do its magic. *)
              [ case ~guard:None ~lhs:[%pat? x, y] ~rhs:(poly ~loc [%expr x] [%expr y]) ])
       in
       phys_equal_first value1 value2 e)
@@ -532,8 +529,7 @@ module Make (Params : Params) = struct
       List.for_all cds ~f:(fun cd ->
         (not (Option.is_some cd.pcd_res))
         &&
-        (* we could support GADTs, but the general case
-           doesn't, so let's hold off *)
+        (* we could support GADTs, but the general case doesn't, so let's hold off *)
         match cd.pcd_args with
         | Pcstr_tuple l -> List.is_empty l
         | Pcstr_record l -> List.is_empty l)
@@ -569,12 +565,12 @@ module Make (Params : Params) = struct
          | Ptyp_variant (row_fields, Closed, None) ->
            compare_variant ~hide ~with_local loc row_fields value1 value2
          | Ptyp_variant (row_fields, Closed, Some _) ->
-           (* We can always cast something of the form [< `A ... `Z > `A ...] to the
-              most general case [`A ... `Z]
+           (* We can always cast something of the form [< `A ... `Z > `A ...] to the most
+              general case [`A ... `Z]
 
-              Then the function signature is
-              [< `A ... `Z > `A ...] -> [< `A ... `Z > `A ...] -> int_or_bool
-              and the two inputs don't even have to be the same type.
+              Then the function signature is [< `A ... `Z > `A ...] ->
+              [< `A ... `Z > `A ...] -> int_or_bool and the two inputs don't even have to
+              be the same type.
            *)
            let v1 = gen_symbol ~prefix:"v1" ()
            and v2 = gen_symbol ~prefix:"v2" () in
@@ -727,9 +723,9 @@ module Make (Params : Params) = struct
     (* So that ~localize doesn't double the size of the generated code, we define the non
        local_ function as an alias to the local_ function. This only works for ground
        types, as [('a -> 'a -> int) -> 'a list -> 'a list -> int] is a type that is
-       neither stronger nor weaker than the same type with local_ on the 'a and 'a
-       list. If the compiler supports polymorphism over locality one day, we may be able
-       to only generate one version of the code, the local version. *)
+       neither stronger nor weaker than the same type with local_ on the 'a and 'a list.
+       If the compiler supports polymorphism over locality one day, we may be able to only
+       generate one version of the code, the local version. *)
     if List.for_all tds ~f:(fun td -> List.is_empty td.ptype_params)
     then
       Some

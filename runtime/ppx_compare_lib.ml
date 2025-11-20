@@ -76,10 +76,10 @@ module Builtin = struct
   ;;]
 
   [%%template
-  [@@@kind.default k = base_with_imm]
+  [@@@kind.default k = base_or_null_with_imm]
 
   let[@mode local] compare_array
-    (type a : k)
+    (type a : k mod separable)
     compare_elt
     (a : a array @ local)
     (b : a array @ local)
@@ -142,10 +142,10 @@ module Builtin = struct
   ;;]
 
   [%%template
-  [@@@kind.default k = base_with_imm]
+  [@@@kind.default k = base_or_null_with_imm]
 
   let[@mode local] equal_array
-    (type a : k)
+    (type a : k mod separable)
     equal_elt
     (a : a array @ local)
     (b : a array @ local)

@@ -2,12 +2,12 @@ open! Base
 
 (* NOTE: I tried to add the flag to an mlt but got the following error:
 
-  {[
-    Error: It is currently not possible to pass preprocessor flags to toplevel expect
-    tests.
-  ]}
+   {[
+     Error: It is currently not possible to pass preprocessor flags to toplevel expect
+     tests.
+   ]}
 
-  So I'm using this library to manually test that it works.
+   So I'm using this library to manually test that it works.
 *)
 
 module Localize_prevents_flag_from_raising : sig

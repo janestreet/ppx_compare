@@ -174,8 +174,9 @@ module%template S2_derived : S2_with_compare_and_equal = struct
   [@@kind ka = (value, bits64, float64), kb = (value, bits64, float64)]
 end
 
-(* Demonstrate that [[%equal: _] [@mode m]] is equivalent to [@@deriving equal [@mode
-   local]] for [m = (global, local)] and similary for [%compare] and [%compare.equal].
+(* Demonstrate that [[%equal: _] [@mode m]] is equivalent to
+   [@@deriving equal [@mode local]] for [m = (global, local)] and similary for [%compare]
+   and [%compare.equal].
 *)
 module%template _ : sig
   type t [@@deriving_inline (compare [@mode local]), (equal [@mode local])]

@@ -359,7 +359,7 @@ end
 module Test = struct
   let ( = ) : int -> int -> bool = Base.Poly.( = )
 
-  (* checking that for the types mentioned in the readme, we compare structurally  *)
+  (* checking that for the types mentioned in the readme, we compare structurally *)
   let%test _ = [%compare: unit option] None (Some ()) = Base.Poly.compare None (Some ())
   let%test _ = [%compare: unit list] [] [ () ] = Base.Poly.compare [] [ () ]
 
@@ -451,8 +451,7 @@ module Equal_local = struct
 end
 
 module Type_extensions : sig
-  (* Making sure we don't generate [_ t -> _ t -> int], as
-     that's too general. *)
+  (* Making sure we don't generate [_ t -> _ t -> int], as that's too general. *)
   module type S = sig
     type 'a t
 
