@@ -101,8 +101,8 @@ module%template S1_via_extension : S1_with_compare_and_equal = struct
 
   [@@@mode.default m = local]
 
-  let compare (type a) compare_a__local = [%compare_local: (a S1_manual.t[@kind k])]
-  let equal (type a) equal_a__local = [%equal_local: (a S1_manual.t[@kind k])]
+  let compare (type a) compare_a__local = [%compare: (a S1_manual.t[@kind k])] [@mode m]
+  let equal (type a) equal_a__local = [%equal: (a S1_manual.t[@kind k])] [@mode m]
 end
 
 module%template S1_derived : S1_with_compare_and_equal = struct
@@ -155,11 +155,11 @@ module%template S2_via_extension : S2_with_compare_and_equal = struct
   [@@@mode.default m = local]
 
   let compare (type a b) compare_a__local compare_b__local =
-    [%compare_local: ((a, b) S2_manual.t[@kind ka kb])]
+    [%compare: ((a, b) S2_manual.t[@kind ka kb])] [@mode m]
   ;;
 
   let equal (type a b) equal_a__local equal_b__local =
-    [%equal_local: ((a, b) S2_manual.t[@kind ka kb])]
+    [%equal: ((a, b) S2_manual.t[@kind ka kb])] [@mode m]
   ;;
 end
 
@@ -172,8 +172,9 @@ module%template S2_derived : S2_with_compare_and_equal = struct
   [@@kind ka = (value, bits64, float64), kb = (value, bits64, float64)]
 end
 
-(* Demonstrate that [[%equal: _] [@mode m]] is equivalent to [@@deriving equal [@mode
-   local]] for [m = (global, local)] and similary for [%compare] and [%compare.equal].
+(* Demonstrate that [[%equal: _] [@mode m]] is equivalent to
+   [@@deriving equal [@mode local]] for [m = (global, local)] and similary for [%compare]
+   and [%compare.equal].
 *)
 module%template _ : sig
   type t [@@deriving_inline (compare [@mode local]), (equal [@mode local])]

@@ -63,7 +63,7 @@ module Builtin = struct
   ;;]
 
   [%%template
-  [@@@kind.default k = base_with_imm]
+  [@@@kind.default k = base_or_null]
 
   let[@mode local] compare_array (type a) compare_elt (a : a array) (b : a array) =
     if a == b
@@ -124,7 +124,7 @@ module Builtin = struct
   ;;]
 
   [%%template
-  [@@@kind.default k = base_with_imm]
+  [@@@kind.default k = base_or_null]
 
   let[@mode local] equal_array (type a) equal_elt (a : a array) (b : a array) =
     a == b
