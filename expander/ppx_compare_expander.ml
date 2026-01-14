@@ -291,19 +291,14 @@ module Make (Params : Params) = struct
   ;;
 
   let function_name ~with_local ?functor_ typename =
+    let typename, template_suffix = Ppx_helpers.demangle_template typename in
     let name =
-      match functor_, typename with
-      | None, "t" -> name
-      | None, s when String.is_prefix ~prefix:"t__" s ->
-        (* We carry [ppx_template] type name mangling over to the function, so that e.g.
-           [t__bits64] gets a [compare__bits64] *)
-        let template_suffix =
-          (* e.g. if [name] is "t__bits64", this is "__bits64" *)
-          String.drop_prefix s 1
-        in
-        name ^ template_suffix
-      | None, s -> Printf.sprintf "%s_%s" name s
-      | Some path, s -> Printf.sprintf "%s_%s__%s" name path s
+      (match functor_, typename with
+       | None, "t" -> name
+       | None, "t_u" -> Printf.sprintf "%s_u" name
+       | None, s -> Printf.sprintf "%s_%s" name s
+       | Some path, s -> Printf.sprintf "%s_%s__%s" name path s)
+      ^ template_suffix
     in
     if with_local then name ^ "__local" else name
   ;;

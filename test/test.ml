@@ -429,25 +429,25 @@ module Equal = struct
 end
 
 module Equal_local = struct
-  let%test _ = [%compare_local.equal: int list] [ 7; 8; 9 ] [ 7; 8; 9 ]
-  let%test _ = not ([%compare_local.equal: int list] [ 7; 8 ] [ 7; 8; 9 ])
+  let%test _ = ([%compare.equal: int list] [@mode local]) [ 7; 8; 9 ] [ 7; 8; 9 ]
+  let%test _ = not (([%compare.equal: int list] [@mode local]) [ 7; 8 ] [ 7; 8; 9 ])
 
   let%test _ =
-    match [%compare_local: int * int] (1, 2) (1, 3) with
+    match ([%compare: int * int] [@mode local]) (1, 2) (1, 3) with
     | -1 -> true
     | _ -> false
   ;;
 
   let%test _ =
-    match [%compare_local: int * int] (1, 3) (1, 2) with
+    match ([%compare: int * int] [@mode local]) (1, 3) (1, 2) with
     | 1 -> true
     | _ -> false
   ;;
 
-  let%test _ = [%compare_local.equal: string option] None None
-  let%test _ = not ([%compare_local.equal: string option] (Some "foo") None)
-  let%test _ = [%compare_local.equal: string] "hello" "hello"
-  let%test _ = not ([%compare_local.equal: string] "hello" "goodbye")
+  let%test _ = ([%compare.equal: string option] [@mode local]) None None
+  let%test _ = not (([%compare.equal: string option] [@mode local]) (Some "foo") None)
+  let%test _ = ([%compare.equal: string] [@mode local]) "hello" "hello"
+  let%test _ = not (([%compare.equal: string] [@mode local]) "hello" "goodbye")
 end
 
 module Type_extensions : sig
@@ -457,8 +457,8 @@ module Type_extensions : sig
 
     val compare : [%compare: _ t]
     val equal : [%compare.equal: _ t]
-    val compare__local : [%compare_local: _ t]
-    val equal__local : [%compare_local.equal: _ t]
+    val compare__local : ([%compare: _ t][@mode local])
+    val equal__local : ([%compare.equal: _ t][@mode local])
   end
 end = struct
   module type S = sig

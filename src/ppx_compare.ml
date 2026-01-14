@@ -16,22 +16,27 @@ let () =
 ;;
 
 let generator f ~explicit_localize ~name =
+  let args () = Deriving.Args.(empty +> flag "unboxed" +> flag "portable") in
+  let f ~ctxt (rf, tds) ~localize ~unboxed ~portable =
+    let loc = Expansion_context.Deriver.derived_item_loc ctxt in
+    let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
+    f ~ctxt (rf, tds) ~localize ~portable
+  in
   match explicit_localize with
   | None ->
     Deriving.Generator.V2.make
-      Deriving.Args.(empty +> flag "localize" +> flag "portable")
-      (fun ~ctxt ast localize portable ->
+      Deriving.Args.(args () +> flag "localize")
+      (fun ~ctxt (rf, tds) unboxed portable localize ->
         if !require_explicit_locality && not localize
         then
           Location.raise_errorf
             ~loc:(Expansion_context.Deriver.derived_item_loc ctxt)
             "deriving %s: must specify global/local"
             name;
-        f ~ctxt ast ~localize ~portable)
+        f ~ctxt (rf, tds) ~localize ~unboxed ~portable)
   | Some localize ->
-    Deriving.Generator.V2.make
-      Deriving.Args.(empty +> flag "portable")
-      (fun ~ctxt ast portable -> f ~ctxt ast ~localize ~portable)
+    Deriving.Generator.V2.make (args ()) (fun ~ctxt (rf, tds) unboxed portable ->
+      f ~ctxt (rf, tds) ~localize ~unboxed ~portable)
 ;;
 
 let deriver name (module M : S) ~explicit_localize =
@@ -85,21 +90,18 @@ let declare_maybe_raise_if_not_explicit name context pattern f ~explicit =
 
 let () =
   [ ( "compare"
-    , "compare_local"
     , "compare__local"
     , "compare__global"
     , Compare.type_
     , Compare.core_type
     , Some Compare.pattern )
   ; ( "equal"
-    , "equal_local"
     , "equal__local"
     , "equal__global"
     , Equal.type_
     , Equal.core_type
     , Some Equal.pattern )
   ; ( "@compare.equal"
-    , "@compare_local.equal"
     , "@compare.equal__local"
     , "@compare.equal__global"
     , Equal.type_
@@ -109,14 +111,7 @@ let () =
   |> List.concat_map
        ~f:
          (fun
-           ( name
-           , local_name
-           , local_name_with_two_underscores_for_ppx_template
-           , global_name_with_two_underscores_for_ppx_template
-           , type_
-           , core_type
-           , pattern )
-         ->
+           (name, explicit_local_name, explicit_global_name, type_, core_type, pattern) ->
          let global_extension_types name ~explicit =
            ( name
            , type_ ~with_local:false
@@ -132,13 +127,8 @@ let () =
            , explicit )
          in
          [ global_extension_types name ~explicit:false
-         ; global_extension_types
-             global_name_with_two_underscores_for_ppx_template
-             ~explicit:true
-         ; local_extension_types local_name ~explicit:false
-         ; local_extension_types
-             local_name_with_two_underscores_for_ppx_template
-             ~explicit:true
+         ; global_extension_types explicit_global_name ~explicit:true
+         ; local_extension_types explicit_local_name ~explicit:true
          ])
   |> List.iter ~f:(fun (name, type_, core_type, pattern, explicit) ->
     Driver.register_transformation

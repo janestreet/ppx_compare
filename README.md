@@ -192,9 +192,9 @@ val equal__local
     -> bool
 ```
 
-You can also use the `[%compare_local: _]`, `[%equal_local: _]` and
-`[%compare_local.equal: _]` extension points to generate the corresponding
-types and functions.
+You can also use the `[%compare__local: _]`, `[%equal__local: _]` and
+`[%compare.equal__local: _]` extension points to generate the corresponding types and
+functions.
 
 For types named something other than `t`, the naming pattern is similar
 to the non-local versions:
@@ -204,3 +204,49 @@ type foo
 
 val compare_foo__local : local_ foo -> local_ foo -> int
 ```
+
+Implicit unboxed records
+-------------------------
+
+To also derive `compare` or `equal` on the implicit unboxed version of a record, add the
+`~unboxed` flag:
+
+```ocaml
+type t = { x : int; y : int } [@@deriving compare ~unboxed, equal ~unboxed]
+```
+
+This generates the following functions:
+
+```ocaml
+val compare : t -> t -> int
+val compare_u : t# -> t# -> int
+val equal : t -> t -> bool
+val equal_u : t# -> t# -> bool
+```
+
+If `~localize` is also added, the following additional functions are generated:
+
+```ocaml
+val compare__local : local_ t -> local_ t -> int
+val compare_u__local : local_ t# -> local_ t# -> int
+val equal__local : local_ t -> local_ t -> bool
+val equal_u__local : local_ t# -> local_ t# -> bool
+```
+
+For types other than `t`, the type name appears before `_u`:
+
+```ocaml
+type foo = { x : int; y : int }
+[@@deriving compare ~unboxed ~localize, equal ~unboxed ~localize]
+
+val compare_foo : foo -> foo -> int
+val compare_foo_u : foo# -> foo# -> int
+val equal_foo : foo -> foo -> bool
+val equal_foo_u : foo# -> foo# -> bool
+val compare_foo__local : local_ foo -> local_ foo -> int
+val compare_foo_u__local : local_ foo# -> local_ foo# -> int
+val equal_foo__local : local_ foo -> local_ foo -> bool
+val equal_foo_u__local : local_ foo# -> local_ foo# -> bool
+```
+
+Implicit unboxed records are only available when using [OxCaml](https://oxcaml.org/).

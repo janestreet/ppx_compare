@@ -115,7 +115,7 @@ module type Ppx_compare_lib = sig @@ portable
     val compare_array
       : ('a : k mod separable).
       ('a compare[@mode l]) -> ('a array compare[@mode l])
-    [@@kind k = base_or_null_with_imm]
+    [@@kind k = base_or_null]
 
     val compare_list
       : ('a : value_or_null).
@@ -143,7 +143,7 @@ module type Ppx_compare_lib = sig @@ portable
     val equal_array
       : ('a : k mod separable).
       ('a equal[@mode l]) -> ('a array equal[@mode l])
-    [@@kind k = base_or_null_with_imm]
+    [@@kind k = base_or_null]
 
     val equal_list : ('a : value_or_null). ('a equal[@mode l]) -> ('a list equal[@mode l])
 
