@@ -40,6 +40,8 @@ module type S = sig
     -> rec_flag * type_declaration list
     -> localize:bool (** [true] means generate a definition with local arguments *)
     -> portable:bool (** [true] means generate a definition annotated as [@@ portable] *)
+    -> zero_alloc:bool
+         (** [true] means generate a definition annotated as [@@zero_alloc] *)
     -> structure
 
   val sig_type_decl
@@ -47,6 +49,8 @@ module type S = sig
     -> rec_flag * type_declaration list
     -> localize:bool (** [true] means generate a declaration with local arguments *)
     -> portable:bool (** [true] means generate a declaration annotated as [@@ portable] *)
+    -> zero_alloc:bool
+         (** [true] means generate a declaration annotated as [@@zero_alloc] *)
     -> signature_item list
 
   module Attrs : Attrs

@@ -10,6 +10,11 @@ module Poly = struct
   external equal : ('a[@local_opt]) -> ('a[@local_opt]) -> bool = "%equal"
 end
 
+let box_float x = x
+let box_int32 x = x
+let box_int64 x = x
+let box_nativeint x = x
+
 module Array = struct
   external length : 'a. 'a array -> int = "%array_length" [@@layout_poly]
   external unsafe_get : 'a. 'a array -> int -> 'a = "%array_unsafe_get" [@@layout_poly]
@@ -43,6 +48,22 @@ module Builtin = struct
   let compare_string : (string compare[@mode l]) = fun x y -> Poly.compare x y
   let compare_bytes : (bytes compare[@mode l]) = fun x y -> Poly.compare x y
   let compare_unit : (unit compare[@mode l]) = fun x y -> Poly.compare x y
+
+  let[@inline] [@zero_alloc] compare_float_u x y =
+    Poly.compare (box_float x) (box_float y)
+  ;;
+
+  let[@inline] [@zero_alloc] compare_int32_u x y =
+    Poly.compare (box_int32 x) (box_int32 y)
+  ;;
+
+  let[@inline] [@zero_alloc] compare_int64_u x y =
+    Poly.compare (box_int64 x) (box_int64 y)
+  ;;
+
+  let[@inline] [@zero_alloc] compare_nativeint_u x y =
+    Poly.compare (box_nativeint x) (box_nativeint y)
+  ;;
 
   let rec compare_list compare_elt a b =
     match a, b with
@@ -108,6 +129,13 @@ module Builtin = struct
 
   (* [Poly.equal] is IEEE compliant, which is not what we want here. *)
   let equal_float x y = equal_int ((compare_float [@mode l]) x y) 0
+  let[@inline] [@zero_alloc] equal_float_u x y = equal_int (compare_float_u x y) 0
+  let[@inline] [@zero_alloc] equal_int32_u x y = Poly.equal (box_int32 x) (box_int32 y)
+  let[@inline] [@zero_alloc] equal_int64_u x y = Poly.equal (box_int64 x) (box_int64 y)
+
+  let[@inline] [@zero_alloc] equal_nativeint_u x y =
+    Poly.equal (box_nativeint x) (box_nativeint y)
+  ;;
 
   let rec equal_list equal_elt a b =
     match a, b with
