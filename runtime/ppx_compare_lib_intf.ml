@@ -151,6 +151,17 @@ module type Ppx_compare_lib = sig @@ portable
       : ('a : value_or_null).
       ('a equal[@mode l]) -> ('a option equal[@mode l])
 
-    val equal_ref : ('a : value_or_null). ('a equal[@mode l]) -> ('a ref equal[@mode l])]
+    val equal_ref : ('a : value_or_null). ('a equal[@mode l]) -> ('a ref equal[@mode l])
+
+    (** Unboxed numeric types *)
+
+    val compare_float_u : (float# compare[@mode l]) [@@zero_alloc arity 2]
+    val compare_int32_u : (int32# compare[@mode l]) [@@zero_alloc arity 2]
+    val compare_int64_u : (int64# compare[@mode l]) [@@zero_alloc arity 2]
+    val compare_nativeint_u : (nativeint# compare[@mode l]) [@@zero_alloc arity 2]
+    val equal_float_u : (float# equal[@mode l]) [@@zero_alloc arity 2]
+    val equal_int32_u : (int32# equal[@mode l]) [@@zero_alloc arity 2]
+    val equal_int64_u : (int64# equal[@mode l]) [@@zero_alloc arity 2]
+    val equal_nativeint_u : (nativeint# equal[@mode l]) [@@zero_alloc arity 2]]
   end
 end

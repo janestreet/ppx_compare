@@ -16,27 +16,31 @@ let () =
 ;;
 
 let generator f ~explicit_localize ~name =
-  let args () = Deriving.Args.(empty +> flag "unboxed" +> flag "portable") in
-  let f ~ctxt (rf, tds) ~localize ~unboxed ~portable =
+  let args () =
+    Deriving.Args.(empty +> flag "unboxed" +> flag "portable" +> flag "zero_alloc")
+  in
+  let f ~ctxt (rf, tds) ~localize ~unboxed ~portable ~zero_alloc =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
-    let tds = Ppx_helpers.with_implicit_unboxed_records ~loc ~unboxed tds in
-    f ~ctxt (rf, tds) ~localize ~portable
+    let tds = Ppx_helpers.with_implicit_unboxed_types ~loc ~unboxed tds in
+    f ~ctxt (rf, tds) ~localize ~portable ~zero_alloc
   in
   match explicit_localize with
   | None ->
     Deriving.Generator.V2.make
       Deriving.Args.(args () +> flag "localize")
-      (fun ~ctxt (rf, tds) unboxed portable localize ->
+      (fun ~ctxt (rf, tds) unboxed portable zero_alloc localize ->
         if !require_explicit_locality && not localize
         then
           Location.raise_errorf
             ~loc:(Expansion_context.Deriver.derived_item_loc ctxt)
             "deriving %s: must specify global/local"
             name;
-        f ~ctxt (rf, tds) ~localize ~unboxed ~portable)
+        f ~ctxt (rf, tds) ~localize ~unboxed ~portable ~zero_alloc)
   | Some localize ->
-    Deriving.Generator.V2.make (args ()) (fun ~ctxt (rf, tds) unboxed portable ->
-      f ~ctxt (rf, tds) ~localize ~unboxed ~portable)
+    Deriving.Generator.V2.make
+      (args ())
+      (fun ~ctxt (rf, tds) unboxed portable zero_alloc ->
+         f ~ctxt (rf, tds) ~localize ~unboxed ~portable ~zero_alloc)
 ;;
 
 let deriver name (module M : S) ~explicit_localize =

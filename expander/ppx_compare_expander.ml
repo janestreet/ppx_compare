@@ -645,7 +645,7 @@ module Make (Params : Params) = struct
     |> Ppx_helpers.Polytype.to_core_type
   ;;
 
-  let compare_of_td ~hide ~with_local ~portable td ~rec_flag =
+  let compare_of_td ~hide ~with_local ~portable ~zero_alloc td ~rec_flag =
     let loc = td.ptype_loc in
     let a = gen_symbol ~prefix:"a" () in
     let b = gen_symbol ~prefix:"b" () in
@@ -683,28 +683,46 @@ module Make (Params : Params) = struct
       | _ :: _ -> true
     in
     let body =
-      eta_reduce_if_possible_and_nonrec ~rec_flag (eabstract ~loc patts function_body)
+      let full_body = eabstract ~loc patts function_body in
+      (* When zero_alloc is true, we must NOT eta-reduce, because zero_alloc annotations
+         don't work on "redirects" like [let foo = bar]. We need the eta-expanded form
+         [let foo a b = bar a b] for zero_alloc to work. *)
+      if zero_alloc
+      then full_body
+      else eta_reduce_if_possible_and_nonrec ~rec_flag full_body
     in
     let modes =
       if portable then [ Loc.make (Ppxlib_jane.Mode "portable") ~loc ] else []
     in
-    if poly_scheme
-    then
-      Ppxlib_jane.Ast_builder.Default.value_binding
-        ~loc
-        ~pat:(ppat_constraint ~loc bnd (scheme_of_td ~hide ~with_local td))
-        ~expr:body
-        ~modes
-    else
-      Ppxlib_jane.Ast_builder.Default.value_binding
-        ~loc
-        ~pat:bnd
-        ~expr:(pexp_constraint ~loc body (scheme_of_td ~hide ~with_local td))
-        ~modes
+    let zero_alloc_attrs =
+      if zero_alloc
+      then
+        [ attribute ~loc ~name:(Loc.make ~loc "zero_alloc") ~payload:(PStr [])
+        ; attribute ~loc ~name:(Loc.make ~loc "inline") ~payload:(PStr [])
+        ]
+      else []
+    in
+    let binding =
+      if poly_scheme
+      then
+        Ppxlib_jane.Ast_builder.Default.value_binding
+          ~loc
+          ~pat:(ppat_constraint ~loc bnd (scheme_of_td ~hide ~with_local td))
+          ~expr:body
+          ~modes
+      else
+        Ppxlib_jane.Ast_builder.Default.value_binding
+          ~loc
+          ~pat:bnd
+          ~expr:(pexp_constraint ~loc body (scheme_of_td ~hide ~with_local td))
+          ~modes
+    in
+    { binding with pvb_attributes = zero_alloc_attrs @ binding.pvb_attributes }
   ;;
 
-  let bindings_of_tds tds ~hide ~with_local ~portable ~rec_flag =
-    List.map tds ~f:(fun td -> compare_of_td td ~hide ~with_local ~portable ~rec_flag)
+  let bindings_of_tds tds ~hide ~with_local ~portable ~zero_alloc ~rec_flag =
+    List.map tds ~f:(fun td ->
+      compare_of_td td ~hide ~with_local ~portable ~zero_alloc ~rec_flag)
   ;;
 
   let eta_expand2 ~loc f =
@@ -714,7 +732,7 @@ module Make (Params : Params) = struct
       (eapply ~loc f [ evar ~loc "a"; evar ~loc "b" ])
   ;;
 
-  let aliases_of_tds tds ~hide =
+  let aliases_of_tds tds ~hide ~zero_alloc =
     (* So that ~localize doesn't double the size of the generated code, we define the non
        local_ function as an alias to the local_ function. This only works for ground
        types, as [('a -> 'a -> int) -> 'a list -> 'a list -> int] is a type that is
@@ -726,20 +744,31 @@ module Make (Params : Params) = struct
       Some
         (List.map tds ~f:(fun td ->
            let loc = td.ptype_name.loc in
-           value_binding
-             ~loc
-             ~pat:(pvar ~loc (function_name ~with_local:false td.ptype_name.txt))
-             ~expr:
-               (pexp_constraint
-                  ~loc
-                  (eta_expand2
-                     ~loc
-                     (evar ~loc (function_name ~with_local:true td.ptype_name.txt)))
-                  (scheme_of_td ~hide ~with_local:false td))))
+           let zero_alloc_attrs =
+             if zero_alloc
+             then
+               [ attribute ~loc ~name:(Loc.make ~loc "zero_alloc") ~payload:(PStr [])
+               ; attribute ~loc ~name:(Loc.make ~loc "inline") ~payload:(PStr [])
+               ]
+             else []
+           in
+           let binding =
+             value_binding
+               ~loc
+               ~pat:(pvar ~loc (function_name ~with_local:false td.ptype_name.txt))
+               ~expr:
+                 (pexp_constraint
+                    ~loc
+                    (eta_expand2
+                       ~loc
+                       (evar ~loc (function_name ~with_local:true td.ptype_name.txt)))
+                    (scheme_of_td ~hide ~with_local:false td))
+           in
+           { binding with pvb_attributes = zero_alloc_attrs @ binding.pvb_attributes }))
     else None
   ;;
 
-  let str_type_decl ~ctxt (rec_flag, tds) ~localize ~portable =
+  let str_type_decl ~ctxt (rec_flag, tds) ~localize ~portable ~zero_alloc =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
     let hide = not (Expansion_context.Deriver.inline ctxt) in
     let tds = List.map tds ~f:name_type_params_in_td in
@@ -756,15 +785,15 @@ module Make (Params : Params) = struct
         ()
     in
     let global_bindings () =
-      bindings_of_tds tds ~hide ~with_local:false ~portable ~rec_flag
+      bindings_of_tds tds ~hide ~with_local:false ~portable ~zero_alloc ~rec_flag
     in
     if localize
     then (
       let local_bindings =
-        bindings_of_tds tds ~hide ~with_local:true ~portable ~rec_flag
+        bindings_of_tds tds ~hide ~with_local:true ~portable ~zero_alloc ~rec_flag
       in
       let global_bindings =
-        match aliases_of_tds tds ~hide with
+        match aliases_of_tds tds ~hide ~zero_alloc with
         | Some values -> values
         | None -> global_bindings ()
       in
@@ -784,7 +813,7 @@ module Make (Params : Params) = struct
     else [ pstr_value ~loc rec_flag (global_bindings ()) ]
   ;;
 
-  let mk_sig ~ctxt (_rec_flag, tds) ~localize ~portable =
+  let mk_sig ~ctxt (_rec_flag, tds) ~localize ~portable ~zero_alloc =
     let hide = not (Expansion_context.Deriver.inline ctxt) in
     let tds = List.map tds ~f:name_type_params_in_td in
     List.concat_map tds ~f:(fun td ->
@@ -795,22 +824,30 @@ module Make (Params : Params) = struct
           |> Ppx_helpers.Polytype.to_core_type
         in
         let name = function_name ~with_local td.ptype_name.txt in
+        let zero_alloc_attr =
+          if zero_alloc
+          then [ attribute ~loc ~name:(Loc.make ~loc "zero_alloc") ~payload:(PStr []) ]
+          else []
+        in
         psig_value
           ~loc
-          (Ppxlib_jane.Ast_builder.Default.value_description
-             ~loc
-             ~name:{ td.ptype_name with txt = name }
-             ~type_:compare_of
-             ~modalities:
-               (if portable then Ppxlib_jane.Shim.Modalities.portable ~loc else [])
-             ~prim:[])
+          { (Ppxlib_jane.Ast_builder.Default.value_description
+               ~loc
+               ~name:{ td.ptype_name with txt = name }
+               ~type_:compare_of
+               ~modalities:
+                 (if portable then Ppxlib_jane.Shim.Modalities.portable ~loc else [])
+               ~prim:[])
+            with
+            pval_attributes = zero_alloc_attr
+          }
       in
       if localize
       then [ generate ~with_local:false; generate ~with_local:true ]
       else [ generate ~with_local:false ])
   ;;
 
-  let sig_type_decl ~ctxt (rec_flag, tds) ~localize ~portable =
+  let sig_type_decl ~ctxt (rec_flag, tds) ~localize ~portable ~zero_alloc =
     let loc = Expansion_context.Deriver.derived_item_loc ctxt in
     let module_name =
       match kind with
@@ -831,10 +868,11 @@ module Make (Params : Params) = struct
         include_infos
     in
     match mk_named_sig ~with_local:false, mk_named_sig ~with_local:true with
-    | Some include_infos, _ when not localize -> [ psig_include include_infos ]
-    | Some include_infos, Some include_infos_local when localize ->
+    | Some include_infos, _ when (not localize) && not zero_alloc ->
+      [ psig_include include_infos ]
+    | Some include_infos, Some include_infos_local when localize && not zero_alloc ->
       [ psig_include include_infos; psig_include include_infos_local ]
-    | _ -> mk_sig ~ctxt (rec_flag, tds) ~localize ~portable
+    | _ -> mk_sig ~ctxt (rec_flag, tds) ~localize ~portable ~zero_alloc
   ;;
 
   let compare_core_type ~with_local ty =
