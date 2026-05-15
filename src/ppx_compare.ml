@@ -2,18 +2,14 @@ open Stdppx
 open Ppxlib
 open Ppx_compare_expander
 
-let require_explicit_locality = ref false
-
 let () =
   Driver.add_arg
     "-compare-require-explicit-locality"
-    (Set require_explicit_locality)
-    ~doc:
-      "If this flag is passed, [ppx_compare] will require locality to be stated \
-       explicitly. This means either using [[@@deriving compare__global]], [[@@deriving \
-       compare__local]], or the equivalent [[@@deriving compare [@mode m]]] with \
-       [ppx_template]."
+    (Unit ignore)
+    ~doc:"ignored; provided for compatibility"
 ;;
+
+let require_explicit_locality ~explicit:_ ~loc:_ ~name:_ = ()
 
 let generator f ~explicit_localize ~name =
   let args () =
@@ -29,12 +25,10 @@ let generator f ~explicit_localize ~name =
     Deriving.Generator.V2.make
       Deriving.Args.(args () +> flag "localize")
       (fun ~ctxt (rf, tds) unboxed portable zero_alloc localize ->
-        if !require_explicit_locality && not localize
-        then
-          Location.raise_errorf
-            ~loc:(Expansion_context.Deriver.derived_item_loc ctxt)
-            "deriving %s: must specify global/local"
-            name;
+        require_explicit_locality
+          ~explicit:localize
+          ~loc:(Expansion_context.Deriver.derived_item_loc ctxt)
+          ~name;
         f ~ctxt (rf, tds) ~localize ~unboxed ~portable ~zero_alloc)
   | Some localize ->
     Deriving.Generator.V2.make
@@ -87,8 +81,7 @@ let replace_underscores_by_variables =
 
 let declare_maybe_raise_if_not_explicit name context pattern f ~explicit =
   Extension.declare name context pattern (fun ~loc ~path a ->
-    if !require_explicit_locality && not explicit
-    then Location.raise_errorf ~loc "deriving %s: must specify global/local" name;
+    require_explicit_locality ~explicit ~loc ~name;
     f ~loc ~path a)
 ;;
 

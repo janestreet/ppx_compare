@@ -1,6 +1,8 @@
 (** Runtime support for auto-generated comparators. Users are not intended to use this
     module directly. *)
 
+open Basement.Or_null_shim.Export
+
 module Definitions = struct
   [%%template
   [@@@mode.default l = (global, local)]
@@ -91,9 +93,8 @@ module type Ppx_compare_lib = sig
   end
 
   (** Raise when fully applied *)
-  val compare_abstract : type_name:string -> _ compare__local
-
-  val equal_abstract : type_name:string -> _ equal__local
+  val%template compare_abstract : type_name:string -> (_ compare[@mode local])
+  val%template equal_abstract : type_name:string -> (_ equal[@mode local])
 
   module Builtin : sig
     [%%template:
@@ -115,6 +116,7 @@ module type Ppx_compare_lib = sig
 
     val compare_list : 'a. ('a compare[@mode l]) -> ('a list compare[@mode l])
     val compare_option : 'a. ('a compare[@mode l]) -> ('a option compare[@mode l])
+    val compare_or_null : ('a compare[@mode l]) -> ('a or_null compare[@mode l])
     val compare_ref : 'a. ('a compare[@mode l]) -> ('a ref compare[@mode l])
     val equal_bool : (bool equal[@mode l]) [@@zero_alloc arity 2]
     val equal_char : (char equal[@mode l]) [@@zero_alloc arity 2]
