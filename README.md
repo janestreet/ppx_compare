@@ -250,3 +250,35 @@ val equal_foo_u__local : local_ foo# -> local_ foo# -> bool
 ```
 
 Implicit unboxed records are only available when using [OxCaml](https://oxcaml.org/).
+
+Zero-alloc annotations
+-----------------------
+
+You can use the `~zero_alloc` flag to annotate the generated functions with
+`[@@zero_alloc]`, which enables the compiler's zero-alloc checker to verify that the
+derived functions do not allocate:
+
+```ocaml
+type t = int [@@deriving compare ~zero_alloc, equal ~zero_alloc]
+```
+
+This generates the following declarations in signatures and adds `[@@zero_alloc]`
+attributes to the definitions in structures:
+
+```ocaml
+val compare : t -> t -> int [@@zero_alloc]
+val equal : t -> t -> bool [@@zero_alloc]
+```
+
+The `~zero_alloc` flag can be combined with `~localize`:
+
+```ocaml
+type t = int [@@deriving equal ~localize ~zero_alloc]
+```
+
+which generates:
+
+```ocaml
+val equal : t -> t -> bool [@@zero_alloc]
+val equal__local : local_ t -> local_ t -> bool [@@zero_alloc]
+```

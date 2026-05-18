@@ -1,3 +1,4 @@
+open Basement.Or_null_shim.Export
 include Ppx_compare_lib_intf.Definitions
 
 [@@@warning "-incompatible-with-upstream"]
@@ -113,6 +114,14 @@ module Builtin = struct
     | None, Some _ -> -1
     | Some _, None -> 1
     | Some a, Some b -> compare_elt a b
+  ;;
+
+  let compare_or_null compare_elt (a @ l) (b @ l) =
+    match a, b with
+    | Null, Null -> 0
+    | Null, This _ -> -1
+    | This _, Null -> 1
+    | This a, This b -> compare_elt a b
   ;;]
 
   [%%template

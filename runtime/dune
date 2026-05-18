@@ -1,6 +1,6 @@
 (library
  (name ppx_compare_lib)
  (public_name ppx_compare.runtime-lib)
- (libraries)
+ (libraries basement)
  (preprocess
   (pps ppx_template ppx_shorthand)))

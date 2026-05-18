@@ -15,6 +15,11 @@ let () =
        [ppx_template]."
 ;;
 
+let require_explicit_locality ~explicit ~loc ~name =
+  if !require_explicit_locality && not explicit
+  then Location.raise_errorf ~loc "deriving %s: must specify global/local" name
+;;
+
 let generator f ~explicit_localize ~name =
   let args () =
     Deriving.Args.(empty +> flag "unboxed" +> flag "portable" +> flag "zero_alloc")
@@ -29,12 +34,10 @@ let generator f ~explicit_localize ~name =
     Deriving.Generator.V2.make
       Deriving.Args.(args () +> flag "localize")
       (fun ~ctxt (rf, tds) unboxed portable zero_alloc localize ->
-        if !require_explicit_locality && not localize
-        then
-          Location.raise_errorf
-            ~loc:(Expansion_context.Deriver.derived_item_loc ctxt)
-            "deriving %s: must specify global/local"
-            name;
+        require_explicit_locality
+          ~explicit:localize
+          ~loc:(Expansion_context.Deriver.derived_item_loc ctxt)
+          ~name;
         f ~ctxt (rf, tds) ~localize ~unboxed ~portable ~zero_alloc)
   | Some localize ->
     Deriving.Generator.V2.make
@@ -87,8 +90,7 @@ let replace_underscores_by_variables =
 
 let declare_maybe_raise_if_not_explicit name context pattern f ~explicit =
   Extension.declare name context pattern (fun ~loc ~path a ->
-    if !require_explicit_locality && not explicit
-    then Location.raise_errorf ~loc "deriving %s: must specify global/local" name;
+    require_explicit_locality ~explicit ~loc ~name;
     f ~loc ~path a)
 ;;
 

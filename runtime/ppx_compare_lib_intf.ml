@@ -3,6 +3,8 @@
 
 [@@@warning "-incompatible-with-upstream"]
 
+open Basement.Or_null_shim.Export
+
 module Definitions = struct
   [%%template
   [@@@mode.default l = (global, local)]
@@ -93,9 +95,8 @@ module type Ppx_compare_lib = sig @@ portable
   end
 
   (** Raise when fully applied *)
-  val compare_abstract : type_name:string -> _ compare__local
-
-  val equal_abstract : type_name:string -> _ equal__local
+  val%template compare_abstract : type_name:string -> (_ compare[@mode local])
+  val%template equal_abstract : type_name:string -> (_ equal[@mode local])
 
   module Builtin : sig @@ portable
     [%%template:
@@ -124,6 +125,8 @@ module type Ppx_compare_lib = sig @@ portable
     val compare_option
       : ('a : value_or_null).
       ('a compare[@mode l]) -> ('a option compare[@mode l])
+
+    val compare_or_null : ('a compare[@mode l]) -> ('a or_null compare[@mode l])
 
     val compare_ref
       : ('a : value_or_null).

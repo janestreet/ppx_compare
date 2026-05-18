@@ -1,7 +1,7 @@
 (library
  (name ppx_compare)
  (public_name ppx_compare)
- (kind ppx_deriver)
+ (kind ppx_rewriter)
  (ppx_runtime_libraries ppx_compare.runtime-lib)
  (libraries ppx_compare_expander ppx_helpers ppxlib ppxlib_jane ppxlib.stdppx)
  (preprocess no_preprocessing))
