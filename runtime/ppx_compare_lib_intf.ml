@@ -1,8 +1,6 @@
 (** Runtime support for auto-generated comparators. Users are not intended to use this
     module directly. *)
 
-[@@@warning "-incompatible-with-upstream"]
-
 open Basement.Or_null_shim.Export
 
 module Definitions = struct
@@ -118,6 +116,11 @@ module type Ppx_compare_lib = sig @@ portable
       ('a compare[@mode l]) -> ('a array compare[@mode l])
     [@@kind k = base_or_null]
 
+    val compare_iarray
+      : ('a : k mod separable).
+      ('a compare[@mode l]) -> ('a Basement.Stdlib_iarray_labels.t compare[@mode l])
+    [@@kind k = (base_or_null, value_or_null mod external64)]
+
     val compare_list
       : ('a : value_or_null).
       ('a compare[@mode l]) -> ('a list compare[@mode l])
@@ -147,6 +150,11 @@ module type Ppx_compare_lib = sig @@ portable
       : ('a : k mod separable).
       ('a equal[@mode l]) -> ('a array equal[@mode l])
     [@@kind k = base_or_null]
+
+    val equal_iarray
+      : ('a : k mod separable).
+      ('a equal[@mode l]) -> ('a Basement.Stdlib_iarray_labels.t equal[@mode l])
+    [@@kind k = (base_or_null, value_or_null mod external64)]
 
     val equal_list : ('a : value_or_null). ('a equal[@mode l]) -> ('a list equal[@mode l])
 
