@@ -21,6 +21,13 @@ module Array = struct
   external unsafe_get : 'a. 'a array -> int -> 'a = "%array_unsafe_get" [@@layout_poly]
 end
 
+module Iarray = struct
+  type 'a t = 'a Basement.Stdlib_iarray_labels.t
+
+  external length : 'a. 'a t -> int = "%array_length" [@@layout_poly]
+  external unsafe_get : 'a. 'a t -> int -> 'a = "%array_unsafe_get" [@@layout_poly]
+end
+
 let compare_abstract ~type_name _ _ =
   Printf.ksprintf
     failwith
@@ -120,6 +127,39 @@ module Builtin = struct
   let compare_array = [%eta3 compare_array [@kind k] [@mode local]]]
 
   [%%template
+  [@@@kind.default k = base_or_null]
+
+  let[@mode local] compare_iarray (type a) compare_elt (a : a Iarray.t) (b : a Iarray.t) =
+    if a == b
+    then 0
+    else (
+      let len_a = Iarray.length a in
+      let len_b = Iarray.length b in
+      let ret = compare len_a len_b in
+      if ret <> 0
+      then ret
+      else (
+        let rec loop i =
+          if i = len_a
+          then 0
+          else (
+            let l = Iarray.unsafe_get a i
+            and r = Iarray.unsafe_get b i in
+            let res = compare_elt l r in
+            if res <> 0 then res else loop (i + 1))
+        in
+        loop 0 [@nontail]))
+  ;;
+
+  let compare_iarray = [%eta3 compare_iarray [@kind k] [@mode local]]]
+
+  [%%template
+  [@@@kind.default __ = value_or_null mod external64]
+  [@@@mode.default l = (global, local)]
+
+  let compare_iarray = (compare_iarray [@kind value_or_null] [@mode l])]
+
+  [%%template
   let[@mode local] compare_ref compare_elt a b = compare_elt !a !b
   let compare_ref = [%eta3 compare_ref [@mode local]]]
 
@@ -181,6 +221,34 @@ module Builtin = struct
   ;;
 
   let equal_array = [%eta3 equal_array [@kind k] [@mode local]]]
+
+  [%%template
+  [@@@kind.default k = base_or_null]
+
+  let[@mode local] equal_iarray (type a) equal_elt (a : a Iarray.t) (b : a Iarray.t) =
+    a == b
+    ||
+    let len_a = Iarray.length a in
+    let len_b = Iarray.length b in
+    equal len_a len_b
+    &&
+    let rec loop i =
+      i = len_a
+      ||
+      let l = Iarray.unsafe_get a i
+      and r = Iarray.unsafe_get b i in
+      equal_elt l r && loop (i + 1)
+    in
+    loop 0 [@nontail]
+  ;;
+
+  let equal_iarray = [%eta3 equal_iarray [@kind k] [@mode local]]]
+
+  [%%template
+  [@@@kind.default __ = value_or_null mod external64]
+  [@@@mode.default l = (global, local)]
+
+  let equal_iarray = (equal_iarray [@kind value_or_null] [@mode l])]
 
   [%%template
   let[@mode local] equal_ref equal_elt a b = equal_elt !a !b

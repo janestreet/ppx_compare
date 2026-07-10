@@ -114,6 +114,11 @@ module type Ppx_compare_lib = sig
     val compare_array : 'a. ('a compare[@mode l]) -> ('a array compare[@mode l])
     [@@kind k = base_or_null]
 
+    val compare_iarray
+      : 'a.
+      ('a compare[@mode l]) -> ('a Basement.Stdlib_iarray_labels.t compare[@mode l])
+    [@@kind k = (base_or_null, value_or_null mod external64)]
+
     val compare_list : 'a. ('a compare[@mode l]) -> ('a list compare[@mode l])
     val compare_option : 'a. ('a compare[@mode l]) -> ('a option compare[@mode l])
     val compare_or_null : ('a compare[@mode l]) -> ('a or_null compare[@mode l])
@@ -131,6 +136,11 @@ module type Ppx_compare_lib = sig
 
     val equal_array : 'a. ('a equal[@mode l]) -> ('a array equal[@mode l])
     [@@kind k = base_or_null]
+
+    val equal_iarray
+      : 'a.
+      ('a equal[@mode l]) -> ('a Basement.Stdlib_iarray_labels.t equal[@mode l])
+    [@@kind k = (base_or_null, value_or_null mod external64)]
 
     val equal_list : 'a. ('a equal[@mode l]) -> ('a list equal[@mode l])
     val equal_option : 'a. ('a equal[@mode l]) -> ('a option equal[@mode l])
